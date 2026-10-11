@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: 'tests/e2e',
   outputDir: 'test-results',
   reporter: 'list',
-  use: { baseURL: 'http://localhost:4173' },
+  use: { baseURL: 'http://localhost:4173', actionTimeout: 15_000 },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: 'npm run build && npm run preview -- --port 4173 --strictPort',
