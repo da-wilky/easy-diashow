@@ -5,6 +5,7 @@ import { toFramePlan, type FramePlan } from '../../src/lib/timeline/frames'
 import type { TimelineSettings, TimelineTrack } from '../../src/lib/timeline/types'
 import { clickTracks, colours, ensureFixtures, fixturesDir } from './fixtures'
 import { nearestColour, probe, readAudio, readFrame, readFrames, rms } from './media'
+import { drag, imageItems, setNumber } from './ui'
 
 const settings: TimelineSettings = {
   width: 1920,
@@ -17,6 +18,8 @@ const settings: TimelineSettings = {
   fadeOut: 3,
   beatSync: true,
 }
+
+const TRANSITION_LABELS = { none: 'Kein Übergang', crossfade: 'Überblenden', wipe: 'Wischen', reveal: 'Aufdecken' }
 
 const idealTracks: TimelineTrack[] = clickTracks.map(({ name, bpm, offset, seconds }) => ({
   id: name,
@@ -36,15 +39,9 @@ async function openProject(page: Page) {
   await page.getByRole('button', { name: 'Neues Projekt' }).click()
   await page.getByLabel('Bilder hinzufügen').setInputFiles(fixtures.images)
   await page.getByLabel('Musik hinzufügen').setInputFiles(fixtures.tracks)
-  await expect(page.getByText('10. img10.png')).toBeVisible()
+  await expect(page.getByRole('listitem', { name: '10. img10.png' })).toBeVisible()
   await expect(page.getByRole('listitem', { name: 'click90.mp3' })).toBeVisible()
   return fixtures
-}
-
-async function setNumber(page: Page, label: string, value: number) {
-  const input = page.getByLabel(label, { exact: true })
-  await input.fill(String(value))
-  await input.press('Enter')
 }
 
 async function download(page: Page, name: string) {
@@ -54,6 +51,8 @@ async function download(page: Page, name: string) {
   expect((await event).suggestedFilename()).toBe('diashow.mp4')
   await (await event).saveAs(file)
   await expect(page.getByRole('link', { name: 'diashow.mp4 herunterladen' })).toBeVisible()
+  await expect(page.locator('dialog video')).toHaveJSProperty('readyState', 4)
+  await page.getByRole('button', { name: 'Schließen' }).click()
   return file
 }
 
@@ -97,18 +96,12 @@ for (const transition of ['none', 'crossfade'] as const)
     test.setTimeout(180_000)
     await openProject(page)
 
-    const first = page.locator('[data-image]').first()
-    const last = page.locator('[data-image]').last()
-    await first.hover()
-    await page.mouse.down()
-    await last.hover({ position: { x: 20, y: 40 } })
-    await last.hover()
-    await page.mouse.up()
-    await expect(page.getByText('10. img1.png')).toBeVisible()
+    await drag(page, imageItems(page).first(), imageItems(page).last())
+    await expect(page.getByRole('listitem', { name: '10. img1.png' })).toBeVisible()
     const order = [...names.slice(1), names[0]!]
 
     await page.getByLabel('Übergänge auf den Beat legen').check()
-    await page.getByLabel('Übergang', { exact: true }).selectOption(transition)
+    await page.getByRole('radio', { name: TRANSITION_LABELS[transition] }).check()
     const file = await download(page, `beat-${transition}.mp4`)
 
     const expected = buildTimeline(order, idealTracks, { ...settings, transition })
@@ -122,8 +115,8 @@ for (const transition of ['wipe', 'reveal'] as const)
     test.setTimeout(180_000)
     const { watermark } = await openProject(page)
     await setNumber(page, 'Sekunden pro Bild', 1)
-    await page.getByLabel('Übergang', { exact: true }).selectOption(transition)
-    await page.getByLabel('Auflösung').selectOption('720')
+    await page.getByRole('radio', { name: TRANSITION_LABELS[transition] }).check()
+    await page.getByRole('radio', { name: /720p/ }).check()
     await page.getByLabel('Wasserzeichen wählen').setInputFiles(watermark)
     await expect(page.getByRole('button', { name: 'Wasserzeichen entfernen' })).toBeVisible()
     await expect(page.getByTestId('video-duration')).toHaveText('0:20 min')
@@ -164,6 +157,38 @@ test('export can be cancelled', async ({ page }) => {
   await page.getByRole('button', { name: 'Diashow erstellen' }).click()
   await expect(page.getByText(/Bilder werden gerendert/)).toBeVisible()
   await page.getByRole('button', { name: 'Abbrechen' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Diashow erstellen' })).toBeEnabled()
+  await expect(page.getByRole('alert')).toHaveCount(0)
+})
+
+test('preview shows the right image and plays with music', async ({ page }) => {
+  await openProject(page)
+  await setNumber(page, 'Sekunden pro Bild', 1)
+  const expected = buildTimeline(names, idealTracks, { ...settings, secondsPerImage: 1, beatSync: false })
+  const colourAt = async (x: number) => {
+    const rgb = await page.locator('section[aria-label="Vorschau"] canvas').evaluate((canvas: HTMLCanvasElement, at) => {
+      const { data } = canvas.getContext('2d')!.getImageData(Math.floor(canvas.width * at), canvas.height / 2, 1, 1)
+      return [data[0]!, data[1]!, data[2]!]
+    }, x)
+    return nearestColour(colours, rgb).name
+  }
+  const slider = page.getByLabel('Position in der Vorschau')
+
+  await expect.poll(() => colourAt(0.5)).toBe('img1')
+  for (const index of [7, 2]) {
+    const segment = expected.segments[index]!
+    await slider.fill(String((segment.start + segment.end) / 2))
+    await expect.poll(() => colourAt(0.5)).toBe(segment.imageId)
+  }
+
+  await slider.fill('0')
+  await page.getByRole('button', { name: 'Vorschau abspielen' }).click()
+  await expect(page.getByRole('button', { name: 'Vorschau anhalten' })).toBeVisible()
+  await expect(page.getByTestId('preview-time')).toHaveText(/^0:0[3-9]/, { timeout: 10_000 })
+  await page.getByRole('button', { name: 'Vorschau anhalten' }).click()
+  const position = Number(await slider.inputValue())
+  const playing = expected.segments.find((s) => position >= s.start + 0.3 && position < s.end - 0.3)
+  if (playing) expect(await colourAt(0.5)).toBe(playing.imageId)
   await expect(page.getByRole('alert')).toHaveCount(0)
 })

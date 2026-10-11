@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Project } from '../lib/project/types'
   import Editor from './Editor.svelte'
+  import Icon from './Icon.svelte'
   import Privacy from './Privacy.svelte'
   import ProjectList from './ProjectList.svelte'
 
@@ -10,8 +11,11 @@
 
 <svelte:window onhashchange={() => (hash = location.hash)} />
 
+<header>
+  <h1><Icon name="film" size={22} /> Diashow</h1>
+  <a class="meta" href="#datenschutz">Datenschutz</a>
+</header>
 <main>
-  <h1>Diashow</h1>
   {#if hash === '#datenschutz'}
     <Privacy />
   {:else if open}
@@ -20,6 +24,21 @@
     <ProjectList onopen={(project) => (open = project)} />
   {/if}
 </main>
-<footer class="meta">
-  Alle Daten bleiben auf diesem Gerät. <a href="#datenschutz">Datenschutz</a>
-</footer>
+
+<style>
+  header {
+    max-width: 76rem;
+    margin: 0 auto;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  h1 {
+    font-size: 1.15rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--accent);
+  }
+</style>

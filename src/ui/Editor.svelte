@@ -5,8 +5,10 @@
   import { MAX_VIDEO_SECONDS } from '../lib/timeline/types'
   import ExportPanel from './ExportPanel.svelte'
   import { formatDuration } from './format'
+  import Icon from './Icon.svelte'
   import ImageGrid from './ImageGrid.svelte'
   import { storageError } from './messages'
+  import Preview from './Preview.svelte'
   import SettingsPanel from './SettingsPanel.svelte'
   import TrackList from './TrackList.svelte'
 
@@ -17,6 +19,9 @@
   let pending = $state(0)
   let saved = $state(true)
   let saveError = $state('')
+  let fileDrag = $state(false)
+  let images: ImageGrid
+  let tracks: TrackList
 
   let loaded = false
   $effect(() => {
@@ -38,37 +43,181 @@
   const timeline = $derived(projectTimeline(project))
   const musicSeconds = $derived(project.tracks.reduce((sum, t) => sum + t.duration, 0))
   const tooLong = $derived(timeline.duration > MAX_VIDEO_SECONDS)
+
+  const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') ?? false
+
+  function drop(event: DragEvent) {
+    if (!carriesFiles(event)) return
+    event.preventDefault()
+    fileDrag = false
+    const files = [...event.dataTransfer!.files]
+    const isAudio = (file: File) => file.type.startsWith('audio/') || /\.mp3$/i.test(file.name)
+    const audio = files.filter(isAudio)
+    const rest = files.filter((f) => !isAudio(f))
+    if (audio.length) tracks.add(audio)
+    if (rest.length) images.add(rest)
+  }
 </script>
 
-<div class="row">
-  <button onclick={onclose}>Zur Projektliste</button>
-  <span class="meta" role="status">{saveError || (saved ? 'Alle Änderungen gespeichert' : 'Speichert …')}</span>
+<svelte:window
+  ondragenter={(e) => (fileDrag ||= carriesFiles(e))}
+  ondragover={(e) => {
+    if (carriesFiles(e)) e.preventDefault()
+  }}
+  ondragleave={(e) => {
+    if (!e.relatedTarget) fileDrag = false
+  }}
+  ondrop={drop}
+/>
+
+<div class="titlebar">
+  <button class="ghost icon" onclick={onclose} aria-label="Zur Projektliste"><Icon name="back" /></button>
+  <h2>{project.name}</h2>
+  <span class="meta saved" class:error={saveError} role="status">
+    {#if saveError}
+      {saveError}
+    {:else if saved}
+      <Icon name="check" size={16} /> <span class="text">Alle Änderungen gespeichert</span>
+    {:else}
+      Speichert …
+    {/if}
+  </span>
 </div>
-<h2>{project.name}</h2>
 
-<ImageGrid bind:project bind:pending />
-<TrackList bind:project bind:pending />
-<SettingsPanel bind:project />
+<div class="layout">
+  <div class="stack">
+    <ImageGrid bind:this={images} bind:project bind:pending />
+    <TrackList bind:this={tracks} bind:project bind:pending />
+  </div>
+  <aside>
+    <Preview {project} {timeline} />
+    <div class="settings"><SettingsPanel bind:project /></div>
+  </aside>
+</div>
 
-<section aria-label="Zusammenfassung" class="summary">
-  <p>
-    Länge des Videos: <strong data-testid="video-duration">{formatDuration(timeline.duration)} min</strong>
-    {#if project.tracks.length}· Länge der Musik: <strong>{formatDuration(musicSeconds)} min</strong>{/if}
-  </p>
-  {#if tooLong}
-    <p class="error" role="alert">
-      Das Video wäre länger als {MAX_VIDEO_SECONDS / 60} Minuten. Bitte weniger Bilder oder eine kürzere Zeit pro Bild wählen.
-    </p>
-  {/if}
-  <ExportPanel {project} {timeline} disabled={pending > 0 || !project.images.length || tooLong} />
-</section>
+<div class="bar">
+  <div class="inner">
+    <div class="stats">
+      <span>Video <strong data-testid="video-duration">{formatDuration(timeline.duration)} min</strong></span>
+      {#if project.tracks.length}
+        <span>Musik <strong>{formatDuration(musicSeconds)} min</strong></span>
+        {#if musicSeconds < timeline.duration}<span class="meta">Musik wird wiederholt</span>{/if}
+      {/if}
+      {#if tooLong}
+        <span class="error" role="alert">Länger als {MAX_VIDEO_SECONDS / 60} Minuten: bitte weniger Bilder oder eine kürzere Zeit pro Bild wählen.</span>
+      {/if}
+    </div>
+    <ExportPanel {project} {timeline} disabled={pending > 0 || !project.images.length || tooLong} />
+  </div>
+</div>
+
+{#if fileDrag}
+  <div class="veil" aria-hidden="true">
+    <div><Icon name="plus" size={40} /> Bilder und Musik hier ablegen</div>
+  </div>
+{/if}
 
 <style>
-  .summary {
-    position: sticky;
-    bottom: 0;
-    background: var(--surface);
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .titlebar h2 {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .saved {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  @media (max-width: 40rem) {
+    .saved .text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+  }
+  .layout {
+    display: grid;
+    gap: 1rem;
+    padding-bottom: calc(var(--bar-height) + 1.5rem);
+    align-items: start;
+  }
+  .layout > * {
+    min-width: 0;
+  }
+  aside {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .settings {
+    min-height: 0;
+  }
+  @media (min-width: 62rem) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) 24rem;
+    }
+    aside {
+      position: sticky;
+      top: 0.75rem;
+      max-height: calc(100vh - var(--bar-height) - 1.5rem);
+    }
+    .settings {
+      overflow-y: auto;
+      border-radius: var(--radius);
+    }
+  }
+  .bar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 3;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(12px);
     border-top: 1px solid var(--border);
-    padding-block: 0.75rem;
+  }
+  .inner {
+    max-width: 76rem;
+    margin: 0 auto;
+    min-height: var(--bar-height);
+    padding: 0.6rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .stats {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+  }
+  .veil {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+    backdrop-filter: blur(4px);
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+  }
+  .veil div {
+    background: var(--surface);
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius);
+    padding: 2rem 2.5rem;
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
   }
 </style>

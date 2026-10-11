@@ -1,4 +1,4 @@
-const THUMBNAIL_EDGE = 320
+const THUMBNAIL_EDGE = 640
 
 export const thumbnailName = (imageId: string) => `${imageId}.thumb`
 

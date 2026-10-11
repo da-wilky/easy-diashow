@@ -7,7 +7,8 @@ export default defineConfig({
   use: { baseURL: 'http://localhost:4173', actionTimeout: 15_000 },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+    // vite's cli.js directly: editor extensions (Console Ninja) patch bin/vite.js and inject inline scripts, which the CSP blocks
+    command: 'node node_modules/vite/dist/node/cli.js build && node node_modules/vite/dist/node/cli.js preview --port 4173 --strictPort',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
   },

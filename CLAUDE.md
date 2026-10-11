@@ -23,7 +23,7 @@ Client-side-only web app: upload images, order them, add music, export an MP4 sl
 
 ## Commands
 - `npm run check` (svelte-check + eslint) and `npm test` after every change.
-- `npm run test:e2e` builds, serves with the production CSP (read from `Caddyfile`), exports videos and verifies them; about 30 s.
+- `npm run test:e2e` builds, serves with the production CSP (read from `Caddyfile`), exports videos and verifies them; about 30 s. It calls Vite's `cli.js` directly because editor extensions (Console Ninja) patch `bin/vite.js` and inject inline scripts.
 - `npm run dev`, `npm run build`, `docker compose up -d --build`.
 
 ## Architecture
@@ -31,12 +31,12 @@ Client-side-only web app: upload images, order them, add music, export an MP4 sl
 src/
   lib/timeline/   pure: (image order, track beats, settings) -> Timeline JSON; frame plan
   lib/beats/      analysis worker; grid.ts applies the user's tempo corrections
-  lib/audio/      decode, pure crossfade/fade mixer
+  lib/audio/      decode, pure crossfade/fade mixer, Web Audio scheduling for the preview
   lib/render/     letterbox and watermark layout, compositor, thumbnails
   lib/export/     Mediabunny pipeline in a worker, progress, cancel, support check
   lib/project/    project model, defaults, limits; project -> Timeline
   lib/storage/    OPFS + IndexedDB project store
-  ui/             Svelte components
+  ui/             Svelte components; sortable.svelte.ts is the one reorder interaction for images and songs
 tests/unit/       vitest
 tests/e2e/        playwright + ffprobe/ffmpeg checks
 tests/fixtures/   generated, not committed
@@ -52,3 +52,6 @@ Timeline JSON: fps, resolution, total duration, fade-in/out, segments (image id,
 - Beat detection on click tracks: BPM exact, beats within 13 ms (tests allow ±1 BPM, ±25 ms). Not yet judged on real songs.
 - 180 s 1080p30 from ten 4000×3000 JPEGs: 43 s in headless Chromium with software encoding.
 - The AAC track is up to about 30 ms longer than the video (encoder frame padding).
+
+## Preview
+- `ui/Preview.svelte` runs the export `Compositor` on a 640 px canvas from the stored thumbnails (640 px edge) and plays the audio plan through `schedulePlayback`; the `AudioContext` clock drives the frames.

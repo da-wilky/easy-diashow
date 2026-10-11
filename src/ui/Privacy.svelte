@@ -1,7 +1,7 @@
 <script lang="ts">
 </script>
 
-<article>
+<article class="card stack">
   <h2>Datenschutzhinweis</h2>
 
   <h3>Kurz gesagt</h3>
