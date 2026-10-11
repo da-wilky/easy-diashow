@@ -28,9 +28,11 @@ const idealTracks: TimelineTrack[] = clickTracks.map(({ name, bpm, offset, secon
 async function exportWith(page: Page, transition: TransitionType, name: string) {
   const { images, tracks } = ensureFixtures()
   await page.goto('/')
+  await page.getByRole('button', { name: 'Neues Projekt' }).click()
   await page.getByLabel('Bilder').setInputFiles(images)
   await page.getByLabel('Musik').setInputFiles(tracks)
   await expect(page.getByText('click90.mp3')).toBeVisible()
+  await expect(page.getByText('img10.png')).toBeVisible()
   await page.getByLabel('Übergänge auf den Beat legen').check()
   await page.getByLabel('Übergang', { exact: true }).selectOption(transition)
   const download = page.waitForEvent('download', { timeout: 120_000 })
