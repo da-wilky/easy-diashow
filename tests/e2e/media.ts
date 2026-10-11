@@ -53,9 +53,20 @@ export function rms(samples: Float32Array, from = 0, to = samples.length) {
   return Math.sqrt(sum / (to - from))
 }
 
+/** one frame at full resolution as RGB bytes */
+export function readFrameBytes(file: string, frame: number) {
+  return run('ffmpeg', ['-v', 'error', '-i', file, '-vf', `select=eq(n\\,${frame})`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
+}
+
+export function psnr(a: Uint8Array, b: Uint8Array) {
+  let sum = 0
+  for (let i = 0; i < a.length; i++) sum += (a[i]! - b[i]!) ** 2
+  return 10 * Math.log10(255 ** 2 / (sum / a.length))
+}
+
 /** one frame at full resolution; returns a pixel reader */
 export function readFrame(file: string, frame: number, width: number, height: number) {
-  const raw = run('ffmpeg', ['-v', 'error', '-i', file, '-vf', `select=eq(n\\,${frame})`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
+  const raw = readFrameBytes(file, frame)
   if (raw.length !== width * height * 3) throw new Error(`frame ${frame} is not ${width}x${height}`)
   return (x: number, y: number): [number, number, number] => {
     const o = (y * width + x) * 3

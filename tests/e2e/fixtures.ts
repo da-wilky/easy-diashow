@@ -45,5 +45,10 @@ export function ensureFixtures() {
   })
   const watermark = path.join(fixturesDir, 'watermark.png')
   if (!existsSync(watermark)) ffmpeg(['-f', 'lavfi', '-i', 'color=c=0x00ff80:s=400x200', '-frames:v', '1', watermark])
-  return { images, tracks, watermark }
+  const photos = [1, 2].map((n) => {
+    const file = path.join(fixturesDir, `detail${n}.jpg`)
+    if (!existsSync(file)) ffmpeg(['-f', 'lavfi', '-i', `mandelbrot=s=1920x1080:start_scale=${3 / n}`, '-frames:v', '1', '-q:v', '3', file])
+    return file
+  })
+  return { images, tracks, watermark, photos }
 }

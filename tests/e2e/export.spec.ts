@@ -4,7 +4,7 @@ import { buildTimeline } from '../../src/lib/timeline/build'
 import { toFramePlan, type FramePlan } from '../../src/lib/timeline/frames'
 import type { TimelineSettings, TimelineTrack } from '../../src/lib/timeline/types'
 import { clickTracks, colours, ensureFixtures, fixturesDir } from './fixtures'
-import { nearestColour, probe, readAudio, readFrame, readFrames, rms } from './media'
+import { nearestColour, probe, psnr, readAudio, readFrame, readFrameBytes, readFrames, rms } from './media'
 import { drag, imageItems, setNumber } from './ui'
 
 const settings: TimelineSettings = {
@@ -158,6 +158,27 @@ for (const transition of ['wipe', 'reveal'] as const)
     expect(nearestColour(colours, pixel(1280 - 30 - 128 - 12, 720 - 30 - 32)).name).toBe('img2')
     expect(nearestColour(colours, pixel(1280 - 12, 720 - 12)).name).toBe('img2')
   })
+
+test('a detailed image is sharp from the first frame after a transition', async ({ page }) => {
+  test.setTimeout(180_000)
+  const { photos } = ensureFixtures()
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neues Projekt' }).click()
+  await page.getByLabel('Bilder hinzufügen').setInputFiles(photos)
+  await expect(page.getByRole('listitem', { name: '2. detail2.jpg' })).toBeVisible()
+  await page.getByRole('radio', { name: /720p/ }).check()
+  const file = await download(page, 'detail.mp4')
+
+  const plan = toFramePlan(buildTimeline(['a', 'b'], [], { ...settings, width: 1280, height: 720, beatSync: false }))
+  const transition = plan.transitions[0]!
+  const settled = readFrameBytes(file, plan.segments[1]!.end - plan.fadeOutFrames - 10)
+  expect(psnr(readFrameBytes(file, transition.end), settled)).toBeGreaterThan(40)
+  const before = readFrameBytes(file, transition.start - 2)
+  const middle = Math.round((transition.start + transition.end) / 2)
+  const progress = (middle - transition.start) / (transition.end - transition.start)
+  const blend = before.map((v, i) => Math.round(v * (1 - progress) + settled[i]! * progress))
+  expect(psnr(readFrameBytes(file, middle), blend)).toBeGreaterThan(35)
+})
 
 test('export can be cancelled', async ({ page }) => {
   await openProject(page)

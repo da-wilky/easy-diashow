@@ -50,7 +50,8 @@ Timeline JSON: fps, resolution, total duration, fade-in/out, segments (image id,
 
 ## Measured
 - Beat detection on click tracks: BPM exact, beats within 13 ms (tests allow ±1 BPM, ±25 ms). Not yet judged on real songs.
-- 180 s 1080p30 from ten 4000×3000 JPEGs: 43 s in headless Chromium with software encoding.
+- 180 s 1080p30 from ten 4000×3000 JPEGs: 43 s in headless Chromium with software encoding (measured before the bitrate was raised).
+- Video encoding asks for a fixed quantizer and falls back to 12 bit/s per pixel (25 Mbit/s at 1080p, variable, so stills use far less); a key frame is forced where each image comes to rest. Chromium on Linux has no quantizer mode for H.264, so it uses the fallback.
 - The AAC track is up to about 30 ms longer than the video (encoder frame padding).
 
 ## Preview
