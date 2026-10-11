@@ -1,0 +1,6 @@
+node_modules
+dist
+.git
+.direnv
+tests/fixtures
+test-results

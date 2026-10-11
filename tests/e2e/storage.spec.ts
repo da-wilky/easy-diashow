@@ -112,3 +112,18 @@ test('beat settings show durations per track', async ({ page }) => {
   await expect(page.getByLabel('Übergänge auf den Beat legen')).not.toBeChecked()
   await expect(page.getByLabel('Übergänge auf den Beat legen')).toBeDisabled()
 })
+
+test('privacy notice is reachable and nothing is requested from other hosts', async ({ page }) => {
+  const foreign: string[] = []
+  page.on('request', (r) => {
+    if (!/^(http:\/\/localhost:4173|blob:|data:)/.test(r.url())) foreign.push(r.url())
+  })
+  const response = await page.goto('/')
+  expect(response!.headers()['content-security-policy']).toContain("default-src 'none'")
+  await page.getByRole('link', { name: 'Datenschutz' }).click()
+  await expect(page.getByRole('heading', { name: 'Datenschutzhinweis' })).toBeVisible()
+  await page.getByRole('link', { name: 'Zurück zur Anwendung' }).click()
+  await expect(page.getByRole('heading', { name: 'Projekte' })).toBeVisible()
+  expect(foreign).toEqual([])
+  expect(await page.context().cookies()).toEqual([])
+})

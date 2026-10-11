@@ -29,6 +29,9 @@ const names = colours.map((c) => c.name)
 
 async function openProject(page: Page) {
   const fixtures = ensureFixtures()
+  page.on('console', (m) => {
+    if (/Content Security Policy/.test(m.text())) throw new Error(m.text())
+  })
   await page.goto('/')
   await page.getByRole('button', { name: 'Neues Projekt' }).click()
   await page.getByLabel('Bilder hinzufügen').setInputFiles(fixtures.images)
