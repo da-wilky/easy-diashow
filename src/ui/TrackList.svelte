@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import { flip } from 'svelte/animate'
   import { SAMPLE_RATE, decodeAudio, toMono } from '../lib/audio/decode'
   import { analyseInWorker } from '../lib/beats'
@@ -6,18 +7,29 @@
   import { trackBeatsPerImage, trackBpm } from '../lib/project/timeline'
   import type { Project, ProjectTrack } from '../lib/project/types'
   import { removeBlob, writeBlob } from '../lib/storage'
-  import { formatDuration, formatSeconds } from './format'
+  import { formatBpm, formatDuration, formatSeconds } from './format'
   import Icon from './Icon.svelte'
+  import ListToolbar from './ListToolbar.svelte'
   import { storageError } from './messages'
   import Segmented from './Segmented.svelte'
+  import { Selection } from './selection.svelte'
   import { SETTLE_MS, Sortable } from './sortable.svelte'
 
-  let { project = $bindable(), pending = $bindable() }: { project: Project; pending: number } = $props()
+  const m = $derived(i18n.m)
 
-  const sortable = new Sortable(
-    () => project.tracks.map((t) => t.id),
-    (from, to) => project.tracks.splice(to, 0, ...project.tracks.splice(from, 1)),
-  )
+  let {
+    project = $bindable(),
+    pending = $bindable(),
+    confirm,
+  }: { project: Project; pending: number; confirm: (text: string, action: string) => Promise<boolean> } = $props()
+
+  const ids = () => project.tracks.map((t) => t.id)
+  const setOrder = (order: string[]) => {
+    const byId = new Map(project.tracks.map((t) => [t.id, t]))
+    project.tracks = order.map((id) => byId.get(id)!)
+  }
+  const selection = new Selection()
+  const sortable = new Sortable(ids, selection, setOrder)
   let error = $state('')
   let status = $state('')
 
@@ -26,10 +38,10 @@
     pending = pending + 1
     try {
       for (const file of files) {
-        status = `${file.name} wird analysiert …`
+        status = m.analysing(file.name)
         const buffer = await decodeAudio(file).catch(() => null)
         if (!buffer) {
-          error = `${file.name} konnte nicht als Audiodatei gelesen werden.`
+          error = m.unreadableAudio(file.name)
           continue
         }
         const analysis = await analyseInWorker(toMono(buffer), SAMPLE_RATE).catch(() => null)
@@ -53,24 +65,36 @@
     }
   }
 
-  async function remove(track: ProjectTrack) {
-    project.tracks = project.tracks.filter((t) => t.id !== track.id)
+  async function remove(removed: string[]) {
+    project.tracks = project.tracks.filter((t) => !removed.includes(t.id))
     if (!project.tracks.length) project.settings.beatSync = false
-    await removeBlob(project.id, track.id)
+    for (const id of removed) {
+      selection.ids.delete(id)
+      await removeBlob(project.id, id)
+    }
+  }
+
+  async function removeSelected() {
+    const block = selection.block(ids())
+    if (!(await confirm(m.confirmRemove(m.songs(block.length)), m.removeAction))) return
+    await remove(block)
+    selection.stop()
+  }
+
+  async function removeAll() {
+    if (await confirm(m.confirmRemoveAll(m.songs(project.tracks.length)), m.removeAllAction)) await remove(ids())
   }
 
   function scaleTempo(track: ProjectTrack, factor: number) {
     if (track.adjust.manualBpm) track.adjust.manualBpm = Number((track.adjust.manualBpm * factor).toFixed(2))
     else track.adjust.factor = Math.min(4, Math.max(0.25, track.adjust.factor * factor))
   }
-
-  const bpmText = (bpm: number | null) => (bpm ? bpm.toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '–')
 </script>
 
 {#snippet picker(primary: boolean)}
   <label class="button" class:primary>
     <Icon name="plus" />
-    Musik hinzufügen
+    {m.addMusic}
     <input
       type="file"
       multiple
@@ -83,10 +107,10 @@
   </label>
 {/snippet}
 
-<section class="card" aria-label="Musik">
+<section class="card" data-section="music" aria-label={m.stepMusic}>
   <div class="step">
     <span class="number">2</span>
-    <h3>Musik</h3>
+    <h3>{m.stepMusic}</h3>
     {#if project.tracks.length}<span class="meta">{project.tracks.length}</span>{/if}
     <span class="spacer"></span>
     {#if project.tracks.length}{@render picker(false)}{/if}
@@ -97,38 +121,56 @@
   {#if !project.tracks.length && !status}
     <div class="empty">
       <Icon name="music" size={40} />
-      <p>Optional: MP3-Dateien hierher ziehen oder auswählen.<br />Dann können die Bilder im Takt wechseln.</p>
+      <p>{m.musicEmpty}<br />{m.musicEmptyNote}</p>
       {@render picker(true)}
     </div>
   {:else}
+    {#if project.tracks.length}
+      <ListToolbar {selection} {ids} {setOrder} onremove={removeSelected} onremoveall={removeAll} removeAllLabel={m.removeAllSongs} />
+    {/if}
     <ol class="tracks">
       {#each project.tracks as track, index (track.id)}
         {@const bpm = trackBpm(track)}
+        {@const selected = selection.ids.has(track.id)}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
         <li
           data-sort={track.id}
           tabindex="0"
           aria-label={track.name}
-          class:dragging={sortable.dragging === track.id}
+          class:selected
+          class:dragging={sortable.isDragging(track.id)}
           animate:flip={{ duration: SETTLE_MS }}
           onpointerdown={(e) => sortable.pointerdown(e, track.id)}
           onkeydown={(e) => sortable.keydown(e, track.id)}
+          onclick={(e) => sortable.click(e, track.id)}
           oncontextmenu={(e) => e.preventDefault()}
         >
           <div class="head">
-            <span class="badge">{index + 1}</span>
+            {#if selection.active}
+              <button
+                class="select"
+                role="checkbox"
+                aria-checked={selected}
+                aria-label={m.select(track.name)}
+                onclick={(e) => selection.toggle(track.id, ids(), e.shiftKey)}
+              >
+                {#if selected}<Icon name="check" size={18} />{/if}
+              </button>
+            {:else}
+              <span class="badge">{index + 1}</span>
+            {/if}
             <div class="title">
               <strong>{track.name}</strong>
-              <span class="meta">{formatDuration(track.duration)} min · <span data-testid="bpm">{bpmText(bpm)}</span> BPM</span>
+              <span class="meta">{formatDuration(track.duration)} min · <span data-testid="bpm">{formatBpm(bpm)}</span> BPM</span>
             </div>
-            <button class="ghost icon danger" onclick={() => remove(track)} aria-label="{track.name} entfernen"><Icon name="trash" /></button>
+            <button class="ghost icon danger" onclick={() => remove([track.id])} aria-label={m.remove(track.name)}><Icon name="trash" /></button>
           </div>
 
           {#if project.settings.beatSync && bpm}
             {#if project.settings.beatMode === 'beats'}
               <div class="row">
                 <label class="inline">
-                  Beats pro Bild
+                  {m.beatsPerImage}
                   <input
                     type="number"
                     min="1"
@@ -138,28 +180,45 @@
                     onchange={(e) => (track.beatsPerImage = Math.min(64, Math.max(1, Math.round(e.currentTarget.valueAsNumber) || 4)))}
                   />
                 </label>
-                <span class="meta">= {formatSeconds((track.beatsPerImage * 60) / bpm)} pro Bild</span>
+                <span class="meta">{m.perImage(formatSeconds((track.beatsPerImage * 60) / bpm))}</span>
               </div>
             {:else}
               <Segmented
-                label="Beats pro Bild"
+                label={m.beatsPerImage}
                 options={beatOptions(bpm).map((o) => ({ value: o.beats, label: String(o.beats), hint: formatSeconds(o.seconds) }))}
                 value={trackBeatsPerImage(track, project.settings)}
                 onchange={(beats) => (track.targetBeats = beats)}
               />
             {/if}
+            {#if trackBeatsPerImage(track, project.settings) > 1}
+              <div class="row">
+                <label class="inline">
+                  {m.downbeatShift}
+                  <input
+                    type="number"
+                    min="0"
+                    max="63"
+                    step="1"
+                    value={track.adjust.downbeat ?? 0}
+                    onchange={(e) => (track.adjust.downbeat = Math.min(63, Math.max(0, Math.round(e.currentTarget.valueAsNumber) || 0)))}
+                  />
+                  {m.beats}
+                </label>
+                <span class="meta">{m.downbeatHint}</span>
+              </div>
+            {/if}
           {/if}
 
           {#if !bpm}
-            <p class="error">Kein Tempo erkannt. Trag die BPM unten von Hand ein, sonst gilt für dieses Stück die feste Zeit pro Bild.</p>
+            <p class="error">{m.noTempo}</p>
           {/if}
           <details open={!bpm}>
-            <summary>Tempo korrigieren</summary>
+            <summary>{m.fixTempo}</summary>
             <div class="row tempo">
-              <button onclick={() => scaleTempo(track, 0.5)} disabled={!bpm} aria-label="BPM halbieren">×½</button>
-              <button onclick={() => scaleTempo(track, 2)} disabled={!bpm} aria-label="BPM verdoppeln">×2</button>
+              <button onclick={() => scaleTempo(track, 0.5)} disabled={!bpm} aria-label={m.halveBpm}>×½</button>
+              <button onclick={() => scaleTempo(track, 2)} disabled={!bpm} aria-label={m.doubleBpm}>×2</button>
               <label class="inline">
-                BPM von Hand
+                {m.manualBpm}
                 <input
                   type="number"
                   min="20"
@@ -175,17 +234,17 @@
                 />
               </label>
               <label class="inline">
-                Beat-Versatz (ms)
+                {m.beatOffset}
                 <input type="number" step="10" min="-2000" max="2000" value={track.adjust.offsetMs} onchange={(e) => (track.adjust.offsetMs = e.currentTarget.valueAsNumber || 0)} />
               </label>
             </div>
-            <p class="meta">Erkennt die Analyse das doppelte oder halbe Tempo, hilft ×½ oder ×2. Der Versatz verschiebt alle Beats.</p>
+            <p class="meta">{m.tempoHint}</p>
           </details>
         </li>
       {/each}
     </ol>
     {#if status}<p class="meta analysing" role="status">{status}</p>{/if}
-    <p class="meta hint">Die Stücke laufen in dieser Reihenfolge mit 1 s Überblendung und wiederholen sich bei Bedarf. Zum Umsortieren ziehen.</p>
+    <p class="meta hint">{selection.active ? m.selectHint : m.musicHint}</p>
   {/if}
 </section>
 
@@ -226,16 +285,34 @@
     align-items: center;
     gap: 0.75rem;
   }
-  .badge {
-    width: 2.25rem;
-    height: 2.25rem;
+  .badge,
+  .select {
+    width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
     border-radius: 50%;
-    background: var(--accent-soft);
-    color: var(--accent);
     display: grid;
     place-items: center;
     font-weight: 700;
     flex: none;
+  }
+  .badge {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .select {
+    border: 2px solid var(--muted);
+    background: transparent;
+  }
+  .select[aria-checked='true'] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  li.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
   .title {
     flex: 1;

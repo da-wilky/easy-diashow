@@ -1,24 +1,20 @@
 <script lang="ts">
   import type { TransitionType } from '../lib/timeline/types'
+  import { i18n } from './i18n.svelte'
 
   let { value = $bindable() }: { value: TransitionType } = $props()
 
-  const OPTIONS: { value: TransitionType; label: string }[] = [
-    { value: 'none', label: 'Kein Übergang' },
-    { value: 'crossfade', label: 'Überblenden' },
-    { value: 'wipe', label: 'Wischen' },
-    { value: 'reveal', label: 'Aufdecken' },
-  ]
+  const TYPES: TransitionType[] = ['none', 'crossfade', 'wipe', 'reveal']
 </script>
 
 <fieldset>
-  <legend class="label">Übergang</legend>
+  <legend class="label">{i18n.m.transition}</legend>
   <div class="tiles">
-    {#each OPTIONS as option (option.value)}
-      <label class:selected={option.value === value}>
-        <input type="radio" name="transition" checked={option.value === value} onchange={() => (value = option.value)} />
-        <span class="demo" aria-hidden="true"><span class="next {option.value}"></span></span>
-        <span>{option.label}</span>
+    {#each TYPES as type (type)}
+      <label class:selected={type === value}>
+        <input type="radio" name="transition" checked={type === value} onchange={() => (value = type)} />
+        <span class="demo" aria-hidden="true"><span class="next {type}"></span></span>
+        <span>{i18n.m.transitions[type]}</span>
       </label>
     {/each}
   </div>

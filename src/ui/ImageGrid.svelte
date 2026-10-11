@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import { onDestroy } from 'svelte'
   import { flip } from 'svelte/animate'
   import { SvelteMap } from 'svelte/reactivity'
@@ -6,18 +7,29 @@
   import { makeThumbnail, thumbnailName } from '../lib/render/thumbnail'
   import { readBlob, removeBlob, writeBlob } from '../lib/storage'
   import Icon from './Icon.svelte'
+  import ListToolbar from './ListToolbar.svelte'
   import { storageError } from './messages'
+  import { Selection } from './selection.svelte'
   import { SETTLE_MS, Sortable } from './sortable.svelte'
 
-  let { project = $bindable(), pending = $bindable() }: { project: Project; pending: number } = $props()
+  const m = $derived(i18n.m)
+
+  let {
+    project = $bindable(),
+    pending = $bindable(),
+    confirm,
+  }: { project: Project; pending: number; confirm: (text: string, action: string) => Promise<boolean> } = $props()
 
   const thumbnails = new SvelteMap<string, string>()
   const collator = new Intl.Collator(undefined, { numeric: true })
   const byName = (a: ProjectImage, b: ProjectImage) => collator.compare(a.name, b.name)
-  const sortable = new Sortable(
-    () => project.images.map((i) => i.id),
-    (from, to) => project.images.splice(to, 0, ...project.images.splice(from, 1)),
-  )
+  const ids = () => project.images.map((i) => i.id)
+  const setOrder = (order: string[]) => {
+    const byId = new Map(project.images.map((i) => [i.id, i]))
+    project.images = order.map((id) => byId.get(id)!)
+  }
+  const selection = new Selection()
+  const sortable = new Sortable(ids, selection, setOrder)
   let error = $state('')
   let adding = $state(0)
 
@@ -34,12 +46,12 @@
       for (const file of files) {
         adding--
         if (!/\.(png|jpe?g)$/i.test(file.name)) {
-          error = `${file.name}: Nur PNG- und JPG-Bilder werden unterstützt.`
+          error = m.onlyImages(file.name)
           continue
         }
         const thumbnail = await makeThumbnail(file).catch(() => null)
         if (!thumbnail) {
-          error = `${file.name} konnte nicht als Bild gelesen werden.`
+          error = m.unreadableImage(file.name)
           continue
         }
         const id = crypto.randomUUID()
@@ -57,19 +69,38 @@
     }
   }
 
-  async function remove(image: ProjectImage) {
-    project.images = project.images.filter((i) => i.id !== image.id)
-    URL.revokeObjectURL(thumbnails.get(image.id) ?? '')
-    thumbnails.delete(image.id)
-    await removeBlob(project.id, image.id)
-    await removeBlob(project.id, thumbnailName(image.id))
+  async function remove(removed: string[]) {
+    project.images = project.images.filter((i) => !removed.includes(i.id))
+    for (const id of removed) {
+      selection.ids.delete(id)
+      URL.revokeObjectURL(thumbnails.get(id) ?? '')
+      thumbnails.delete(id)
+      await removeBlob(project.id, id)
+      await removeBlob(project.id, thumbnailName(id))
+    }
+  }
+
+  async function removeSelected() {
+    const block = selection.block(ids())
+    if (!(await confirm(m.confirmRemove(m.images(block.length)), m.removeAction))) return
+    await remove(block)
+    selection.stop()
+  }
+
+  async function removeAll() {
+    if (await confirm(m.confirmRemoveAll(m.images(project.images.length)), m.removeAllAction)) await remove(ids())
+  }
+
+  async function sortByName() {
+    if (await confirm(m.confirmSort, m.sortAction))
+      project.images.sort(byName)
   }
 </script>
 
 {#snippet picker(primary: boolean)}
   <label class="button" class:primary>
     <Icon name="plus" />
-    Bilder hinzufügen
+    {m.addImages}
     <input
       type="file"
       multiple
@@ -82,19 +113,13 @@
   </label>
 {/snippet}
 
-<section class="card" aria-label="Bilder">
+<section class="card" data-section="images" aria-label={m.stepImages}>
   <div class="step">
     <span class="number">1</span>
-    <h3>Bilder</h3>
+    <h3>{m.stepImages}</h3>
     {#if project.images.length}<span class="meta">{project.images.length}</span>{/if}
     <span class="spacer"></span>
-    {#if project.images.length}
-      <button class="ghost" onclick={() => project.images.sort(byName)} disabled={project.images.length < 2}>
-        <Icon name="sort" />
-        Nach Name sortieren
-      </button>
-      {@render picker(false)}
-    {/if}
+    {#if project.images.length}{@render picker(false)}{/if}
   </div>
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -102,34 +127,51 @@
   {#if !project.images.length && !adding}
     <div class="empty">
       <Icon name="image" size={40} />
-      <p>Zieh deine Fotos hierher oder wähle sie aus.<br />PNG und JPG, sortiert nach Dateiname.</p>
+      <p>{m.imagesEmpty}<br />{m.imagesEmptyNote}</p>
       {@render picker(true)}
     </div>
   {:else}
-    <ol class="grid">
+    <ListToolbar {selection} {ids} {setOrder} onremove={removeSelected} onremoveall={removeAll} removeAllLabel={m.removeAllImages} onsort={sortByName} />
+    <ol class="grid" class:selecting={selection.active}>
       {#each project.images as image, index (image.id)}
+        {@const selected = selection.ids.has(image.id)}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
         <li
           data-sort={image.id}
           tabindex="0"
           aria-label="{index + 1}. {image.name}"
-          class:dragging={sortable.dragging === image.id}
+          class:selected
+          class:dragging={sortable.isDragging(image.id)}
           animate:flip={{ duration: SETTLE_MS }}
           onpointerdown={(e) => sortable.pointerdown(e, image.id)}
           onkeydown={(e) => sortable.keydown(e, image.id)}
+          onclick={(e) => sortable.click(e, image.id)}
           oncontextmenu={(e) => e.preventDefault()}
         >
           <img src={thumbnails.get(image.id)} alt={image.name} draggable="false" />
-          <span class="index">{index + 1}</span>
-          <button class="remove" onclick={() => remove(image)} aria-label="{image.name} entfernen"><Icon name="x" size={16} /></button>
-          <span class="caption">{image.name}</span>
+          {#if selection.active}
+            <button
+              class="select"
+              role="checkbox"
+              aria-checked={selected}
+              aria-label={m.select(image.name)}
+              onclick={(e) => selection.toggle(image.id, ids(), e.shiftKey)}
+            >
+              {#if selected}<Icon name="check" size={16} />{/if}
+            </button>
+          {:else}
+            <button class="remove" onclick={() => remove([image.id])} aria-label={m.remove(image.name)}><Icon name="x" size={16} /></button>
+          {/if}
+          <span class="caption">{index + 1} · {image.name}</span>
         </li>
       {/each}
       {#each { length: adding }, i (i)}
         <li class="placeholder" aria-hidden="true"></li>
       {/each}
     </ol>
-    <p class="meta hint">Zum Umsortieren ziehen · am Touchscreen kurz gedrückt halten · mit Tastatur: Pfeiltasten</p>
+    <p class="meta hint">
+      {selection.active ? m.selectHint : m.imagesHint}
+    </p>
   {/if}
 </section>
 
@@ -156,6 +198,15 @@
       box-shadow 0.15s,
       scale 0.15s;
   }
+  .selecting li {
+    cursor: pointer;
+  }
+  li.selected {
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+  li.selected img {
+    opacity: 0.75;
+  }
   li.dragging {
     cursor: grabbing;
     z-index: 1;
@@ -181,21 +232,6 @@
     object-fit: cover;
     pointer-events: none;
   }
-  .index {
-    position: absolute;
-    top: 0.35rem;
-    left: 0.35rem;
-    min-width: 1.5rem;
-    height: 1.5rem;
-    padding: 0 0.35rem;
-    border-radius: 999px;
-    background: rgb(0 0 0 / 0.65);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 700;
-    display: grid;
-    place-items: center;
-  }
   .caption {
     position: absolute;
     inset: auto 0 0 0;
@@ -206,18 +242,32 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    pointer-events: none;
   }
+  .select,
   .remove {
     position: absolute;
     top: 0.3rem;
-    right: 0.3rem;
     width: 2rem;
     min-height: 2rem;
     padding: 0;
-    border: none;
     border-radius: 50%;
-    background: rgb(0 0 0 / 0.65);
     color: #fff;
+  }
+  .select {
+    left: 0.3rem;
+    border: 2px solid #fff;
+    background: rgb(0 0 0 / 0.35);
+  }
+  .select[aria-checked='true'] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .remove {
+    right: 0.3rem;
+    border: none;
+    background: rgb(0 0 0 / 0.65);
     opacity: 0;
   }
   li:hover .remove,

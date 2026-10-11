@@ -58,6 +58,15 @@ function beatIndex(region: Region, t: number) {
   return region.track.beats.findIndex((b) => b >= t - region.start - EPS)
 }
 
+/** index of the first beat at or after `t` this track may cut on, or -1 */
+function cutIndex(region: Region, t: number) {
+  const { beats, beatsPerImage, beatPhase } = region.track
+  const i = beatIndex(region, t)
+  if (i === -1) return -1
+  const aligned = i + ((((beatPhase - i) % beatsPerImage) + beatsPerImage) % beatsPerImage)
+  return aligned < beats.length ? aligned : -1
+}
+
 /** output time of the beat `n` beats after the first beat at or after `t`, continuing the grid past its last beat */
 function advance(region: Region, t: number, n: number) {
   const { beats } = region.track
@@ -76,13 +85,13 @@ export function buildTimeline(imageIds: string[], allTracks: TimelineTrack[], se
   const regions = tracks.length ? regionSequence(tracks) : null
   const beatSync = settings.beatSync && regions !== null
 
-  /** first beat at or after `target` that belongs to the track playing at that beat */
+  /** first beat at or after `target` that the track playing at that beat may cut on */
   const snap = (target: number, origin: Region | null): number => {
     // a track whose beats all lie inside its crossfades never yields one
     for (let tries = 0; tries <= tracks.length * 2; tries++) {
       const region = regions!.at(target)
       if (region === origin || !hasGrid(region.track)) return target
-      const i = beatIndex(region, Math.max(target, region.from))
+      const i = cutIndex(region, Math.max(target, region.from))
       const beat = region.start + (region.track.beats[i] ?? Infinity)
       if (beat < region.to) return beat
       target = region.to

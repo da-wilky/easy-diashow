@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import { onDestroy } from 'svelte'
   import type { Project } from '../lib/project/types'
   import { thumbnailName } from '../lib/render/thumbnail'
@@ -16,8 +17,11 @@
   import ConfirmDialog from './ConfirmDialog.svelte'
   import { formatBytes, formatDate } from './format'
   import Icon from './Icon.svelte'
+  import Logo from './Logo.svelte'
 
   const COVER_IMAGES = 3
+
+  const m = $derived(i18n.m)
 
   let { onopen }: { onopen: (project: Project) => void } = $props()
 
@@ -48,7 +52,7 @@
 
   async function create(event: SubmitEvent) {
     event.preventDefault()
-    onopen(await createProject(newName.trim() || 'Neues Projekt'))
+    onopen(await createProject(newName.trim() || m.newProject))
   }
 
   async function rename(event: SubmitEvent) {
@@ -61,36 +65,34 @@
   }
 
   async function remove(project: Project) {
-    if (!(await confirm.ask(`Projekt „${project.name}“ mit allen Bildern und Musikstücken löschen?`, 'Löschen'))) return
+    if (!(await confirm.ask(m.confirmDeleteProject(project.name), m.deleteAction))) return
     await deleteProject(project.id)
     await refresh()
   }
 
   async function removeAll() {
-    if (!(await confirm.ask('Wirklich alle Projekte und alle auf diesem Gerät gespeicherten Daten löschen?', 'Alles löschen'))) return
+    if (!(await confirm.ask(m.confirmDeleteAll, m.deleteAllAction))) return
     await deleteEverything()
     await refresh()
   }
-
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 </script>
 
 <section class="hero">
-  <h2>Aus Fotos und Musik wird ein Video</h2>
-  <p class="meta">Bilder im Takt der Musik, fertig als MP4. Alles bleibt auf deinem Gerät.</p>
+  <h2><Logo size={44} /> Easy Diashow</h2>
+  <p class="meta">{m.tagline}</p>
   <form onsubmit={create} class="row">
-    <input bind:value={newName} placeholder="Name des Projekts" aria-label="Name des Projekts" />
-    <button type="submit" class="primary"><Icon name="plus" /> Neues Projekt</button>
+    <input bind:value={newName} placeholder={m.projectName} aria-label={m.projectName} />
+    <button type="submit" class="primary"><Icon name="plus" /> {m.newProject}</button>
   </form>
 </section>
 
 <section>
-  <h2 class="heading">Projekte</h2>
+  <h2 class="heading">{m.projects}</h2>
   {#if projects.length}
     <ul class="projects">
       {#each projects as { project, size, covers } (project.id)}
         <li class="card">
-          <button class="cover" onclick={() => onopen(project)} aria-label="{project.name} öffnen">
+          <button class="cover" onclick={() => onopen(project)} aria-label={m.openProject(project.name)}>
             {#each covers as url (url)}
               <img src={url} alt="" />
             {:else}
@@ -103,7 +105,7 @@
                 <form onsubmit={rename}>
                   <input
                     bind:value={renaming.name}
-                    aria-label="Neuer Name"
+                    aria-label={m.newName}
                     onblur={() => (renaming = undefined)}
                     onkeydown={(e) => e.key === 'Escape' && (renaming = undefined)}
                     {@attach (input) => input.select()}
@@ -113,16 +115,16 @@
                 <strong>{project.name}</strong>
               {/if}
               <div class="actions">
-                <button class="ghost icon" onclick={() => (renaming = { id: project.id, name: project.name })} aria-label="{project.name} umbenennen">
+                <button class="ghost icon" onclick={() => (renaming = { id: project.id, name: project.name })} aria-label={m.renameProject(project.name)}>
                   <Icon name="pencil" />
                 </button>
-                <button class="ghost icon danger" onclick={() => remove(project)} aria-label="{project.name} löschen"><Icon name="trash" /></button>
+                <button class="ghost icon danger" onclick={() => remove(project)} aria-label={m.deleteProject(project.name)}><Icon name="trash" /></button>
               </div>
             </div>
             <span class="meta">
-              {count(project.images.length, 'Bild', 'Bilder')} · {count(project.tracks.length, 'Musikstück', 'Musikstücke')} · {formatBytes(size)}
+              {m.images(project.images.length)} · {m.songs(project.tracks.length)} · {formatBytes(size)}
             </span>
-            <span class="meta">Geändert {formatDate(project.modified)}</span>
+            <span class="meta">{m.modified(formatDate(project.modified))}</span>
           </div>
         </li>
       {/each}
@@ -130,7 +132,7 @@
   {:else}
     <div class="empty">
       <Icon name="film" size={40} />
-      <p>Noch keine Projekte.</p>
+      <p>{m.noProjects}</p>
     </div>
   {/if}
 </section>
@@ -138,15 +140,11 @@
 <section class="storage meta">
   {#if storage}
     <p>
-      Speicher auf diesem Gerät: {formatBytes(storage.usage)} von {formatBytes(storage.quota)} belegt.
-      {#if storage.persisted}
-        Der Browser hat dauerhaften Speicher zugesagt.
-      {:else}
-        Der Browser kann lokale Daten von sich aus löschen, etwa bei Speichermangel oder (Safari) wenn die Seite länger nicht besucht wurde.
-      {/if}
+      {m.storageUsage(formatBytes(storage.usage), formatBytes(storage.quota))}
+      {storage.persisted ? m.storagePersisted : m.storageVolatile}
     </p>
   {/if}
-  <button class="danger" onclick={removeAll} disabled={!projects.length}>Alle Daten löschen</button>
+  <button class="danger" onclick={removeAll} disabled={!projects.length}>{m.deleteAllData}</button>
 </section>
 
 <ConfirmDialog bind:this={confirm} />
@@ -164,6 +162,9 @@
     border: 1px solid var(--border);
   }
   .hero h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     font-size: clamp(1.5rem, 4vw, 2.2rem);
   }
   .hero input {

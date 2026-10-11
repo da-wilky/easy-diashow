@@ -4,7 +4,7 @@ import { clipGain, masterGain } from './mix'
 const CURVE_POINTS = 33
 
 /**
- * Schedules the timeline's audio plan on `context` so that timeline position `from` plays at context time `at`.
+ * Schedules the timeline's audio plan into `destination` so that timeline position `from` plays at context time `at`.
  * Returns a function that stops it.
  */
 export function schedulePlayback(
@@ -13,6 +13,7 @@ export function schedulePlayback(
   buffers: Map<string, AudioBuffer>,
   from: number,
   at: number,
+  destination: AudioNode,
 ) {
   const toContext = (t: number) => at + t - from
   const automate = (param: AudioParam, gainAt: (t: number) => number, start: number, end: number) => {
@@ -24,7 +25,7 @@ export function schedulePlayback(
   }
 
   const master = context.createGain()
-  master.connect(context.destination)
+  master.connect(destination)
   automate(master.gain, (t) => masterGain(timeline, t), 0, timeline.fadeIn)
   automate(master.gain, (t) => masterGain(timeline, t), timeline.duration - timeline.fadeOut, timeline.duration)
 

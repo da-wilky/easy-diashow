@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
-export const imageItems = (page: Page) => page.locator('section[aria-label="Bilder"] [data-sort]')
-export const trackItems = (page: Page) => page.locator('section[aria-label="Musik"] [data-sort]')
+export const imageItems = (page: Page) => page.locator('[data-section="images"] [data-sort]')
+export const trackItems = (page: Page) => page.locator('[data-section="music"] [data-sort]')
 
 export const imageOrder = (page: Page) =>
   imageItems(page)
@@ -15,7 +15,7 @@ export async function createProject(page: Page, name: string) {
 }
 
 /** drags `item` onto `target` with the mouse; `grab` is where on the item the press happens */
-export async function drag(page: Page, item: Locator, target: Locator, grab = { x: 30, y: 30 }) {
+export async function drag(page: Page, item: Locator, target: Locator, grab = { x: 60, y: 45 }) {
   await item.hover({ position: grab })
   await page.mouse.down()
   await target.hover({ position: { x: 20, y: 20 } })

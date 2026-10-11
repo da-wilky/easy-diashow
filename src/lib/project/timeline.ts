@@ -1,4 +1,4 @@
-import { effectiveBeats, effectiveBpm, nearestBeatOption } from '../beats/grid'
+import { downbeatIndex, effectiveBeats, effectiveBpm, nearestBeatOption } from '../beats/grid'
 import { buildTimeline } from '../timeline/build'
 import { FPS, type Timeline } from '../timeline/types'
 import { RESOLUTIONS, type Project, type ProjectSettings, type ProjectTrack } from './types'
@@ -19,12 +19,17 @@ export function projectTimeline(project: Project): Timeline {
   const { settings } = project
   return buildTimeline(
     project.images.map((i) => i.id),
-    project.tracks.map((track) => ({
-      id: track.id,
-      duration: track.duration,
-      beats: effectiveBeats(track.analysis?.beats ?? [], track.duration, track.adjust),
-      beatsPerImage: trackBeatsPerImage(track, settings),
-    })),
+    project.tracks.map((track) => {
+      const detected = track.analysis?.beats ?? []
+      const beats = effectiveBeats(detected, track.duration, track.adjust)
+      return {
+        id: track.id,
+        duration: track.duration,
+        beats,
+        beatsPerImage: trackBeatsPerImage(track, settings),
+        beatPhase: downbeatIndex(beats, detected, track.adjust),
+      }
+    }),
     { ...settings, ...RESOLUTIONS[settings.resolution], fps: FPS },
   )
 }

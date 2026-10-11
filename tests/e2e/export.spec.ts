@@ -26,6 +26,7 @@ const idealTracks: TimelineTrack[] = clickTracks.map(({ name, bpm, offset, secon
   duration: seconds,
   beats: Array.from({ length: Math.ceil(((seconds - offset) * bpm) / 60) }, (_, i) => offset + (i * 60) / bpm),
   beatsPerImage: 4,
+  beatPhase: 0,
 }))
 
 const names = colours.map((c) => c.name)
@@ -102,9 +103,15 @@ for (const transition of ['none', 'crossfade'] as const)
 
     await page.getByLabel('Übergänge auf den Beat legen').check()
     await page.getByRole('radio', { name: TRANSITION_LABELS[transition] }).check()
-    const file = await download(page, `beat-${transition}.mp4`)
+    // the crossfade run also moves "the one" of the first song by two beats
+    const downbeat = transition === 'crossfade' ? 2 : 0
+    const shift = page.getByRole('listitem', { name: 'click120.mp3' }).getByLabel('Die Eins verschieben um')
+    await shift.fill(String(downbeat))
+    await shift.press('Enter')
+    const file = await download(page, `beat-.mp4`)
 
-    const expected = buildTimeline(order, idealTracks, { ...settings, transition })
+    const tracks = [{ ...idealTracks[0]!, beatPhase: downbeat }, idealTracks[1]!]
+    const expected = buildTimeline(order, tracks, { ...settings, transition })
     expectContainer(file, 1920, 1080, expected.duration)
     expectCuts(file, toFramePlan(expected))
     expectAudio(file)
@@ -167,7 +174,7 @@ test('preview shows the right image and plays with music', async ({ page }) => {
   await setNumber(page, 'Sekunden pro Bild', 1)
   const expected = buildTimeline(names, idealTracks, { ...settings, secondsPerImage: 1, beatSync: false })
   const colourAt = async (x: number) => {
-    const rgb = await page.locator('section[aria-label="Vorschau"] canvas').evaluate((canvas: HTMLCanvasElement, at) => {
+    const rgb = await page.locator('[data-section="preview"] canvas').evaluate((canvas: HTMLCanvasElement, at) => {
       const { data } = canvas.getContext('2d')!.getImageData(Math.floor(canvas.width * at), canvas.height / 2, 1, 1)
       return [data[0]!, data[1]!, data[2]!]
     }, x)
@@ -183,6 +190,8 @@ test('preview shows the right image and plays with music', async ({ page }) => {
   }
 
   await slider.fill('0')
+  await page.getByLabel('Lautstärke der Vorschau').fill('0.3')
+  await expect(page.getByLabel('Lautstärke der Vorschau')).toHaveValue('0.3')
   await page.getByRole('button', { name: 'Vorschau abspielen' }).click()
   await expect(page.getByRole('button', { name: 'Vorschau anhalten' })).toBeVisible()
   await expect(page.getByTestId('preview-time')).toHaveText(/^0:0[3-9]/, { timeout: 10_000 })

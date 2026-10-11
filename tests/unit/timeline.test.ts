@@ -21,7 +21,7 @@ const ids = (n: number) => Array.from({ length: n }, (_, i) => `img${i}`)
 function track(id: string, bpm: number, offset: number, duration: number, beatsPerImage = 4): TimelineTrack {
   const beats: number[] = []
   for (let i = 0; offset + (i * 60) / bpm < duration; i++) beats.push(offset + (i * 60) / bpm)
-  return { id, duration, beats, beatsPerImage }
+  return { id, duration, beats, beatsPerImage, beatPhase: 0 }
 }
 
 const cuts = (t: Timeline) => t.segments.slice(1).map((s) => s.start)
@@ -99,7 +99,7 @@ describe('beat sync', () => {
   it('shows the first image fully for at least the chosen duration', () => {
     const t = buildTimeline(ids(5), [track('a', 120, 0.1, 600, 4)], beat)
     expect(t.transitions[0]!.start - t.fadeIn).toBeGreaterThanOrEqual(2 - 1e-9)
-    expect(t.transitions[0]!.start - t.fadeIn).toBeLessThan(2 + 0.5)
+    expect(t.transitions[0]!.start - t.fadeIn).toBeLessThan(2 + 2)
   })
 
   it('starts the fade-out on a beat', () => {
@@ -118,7 +118,7 @@ describe('beat sync', () => {
   it('follows real beat positions when the tempo drifts', () => {
     const beats: number[] = []
     for (let time = 0.3, i = 0; time < 300; i++, time += 0.5 + 0.03 * Math.sin(i / 7)) beats.push(time)
-    const tracks = [{ id: 'a', duration: 300, beats, beatsPerImage: 4 }]
+    const tracks = [{ id: 'a', duration: 300, beats, beatsPerImage: 4, beatPhase: 0 }]
     const t = buildTimeline(ids(60), tracks, beat)
     cuts(t).forEach((x) => expect(beats).toContain(x))
   })
@@ -171,8 +171,25 @@ describe('beat sync', () => {
     cuts(t).forEach((x) => expectOnBeat(t, tracks, x))
   })
 
+  it('cuts only on beats in phase with the declared downbeat, also after a track change', () => {
+    const tracks = [{ ...track('a', 120, 0.1, 20, 4), beatPhase: 2 }, { ...track('b', 90, 0.25, 30, 8), beatPhase: 5 }]
+    const t = buildTimeline(ids(14), tracks, beat)
+    const cutsPerTrack = { a: 0, b: 0 }
+    for (const cut of cuts(t)) {
+      const clip = t.audio.find((c) => cut >= c.start + c.fadeIn / 2 - 1e-9 && cut < c.end - c.fadeOut / 2)!
+      const source = tracks.find((x) => x.id === clip.trackId)!
+      const index = source.beats.findIndex((b) => Math.abs(b - (cut - clip.start)) < 1e-6)
+      expect(index).toBeGreaterThanOrEqual(0)
+      expect((index - source.beatPhase) % source.beatsPerImage).toBe(0)
+      cutsPerTrack[clip.trackId as 'a' | 'b']++
+    }
+    expect(cutsPerTrack.a).toBeGreaterThan(1)
+    expect(cutsPerTrack.b).toBeGreaterThan(1)
+    expectWellFormed(t)
+  })
+
   it('falls back to fixed steps for a track without beats', () => {
-    const tracks = [{ id: 'a', duration: 600, beats: [], beatsPerImage: 4 }]
+    const tracks = [{ id: 'a', duration: 600, beats: [], beatsPerImage: 4, beatPhase: 0 }]
     const t = buildTimeline(ids(3), tracks, beat)
     expect(t.segments).toEqual(buildTimeline(ids(3), [], settings).segments)
   })

@@ -13,7 +13,7 @@
     check: 'M5 12.5l4.5 4.5L19 7',
     film: 'M4 5h16v14H4zM8 5v14M16 5v14M4 9.5h4M4 14.5h4M16 9.5h4M16 14.5h4',
     sort: 'M4 7h11M4 12h8M4 17h5M18 6v12M15 15l3 3 3-3',
-    sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4',
+    volume: 'M4 10v4h3l5 4V6l-5 4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11',
   }
   export type IconName = keyof typeof PATHS
 </script>

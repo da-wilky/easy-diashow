@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { beatOptions, effectiveBeats, effectiveBpm, nearestBeatOption } from '../../src/lib/beats/grid'
+import { beatOptions, downbeatIndex, effectiveBeats, effectiveBpm, nearestBeatOption } from '../../src/lib/beats/grid'
 
 const none = { factor: 1, manualBpm: null, offsetMs: 0 }
 const detected = [2, 2.5, 3, 3.5, 4]
@@ -42,5 +42,20 @@ describe('beat options', () => {
     expect(nearestBeatOption(120, 3.2)).toBe(8)
     expect(nearestBeatOption(120, 2.9)).toBe(4)
     expect(nearestBeatOption(90, 3)).toBe(4)
+  })
+})
+
+describe('downbeatIndex', () => {
+  it('counts from the first detected beat, wherever the grid starts', () => {
+    const beats = effectiveBeats(detected, 6, none)
+    expect(downbeatIndex(beats, detected, none)).toBe(4)
+    expect(downbeatIndex(beats, detected, { ...none, downbeat: 3 })).toBe(7)
+  })
+
+  it('follows the offset and a manual grid', () => {
+    const shifted = { ...none, offsetMs: 100 }
+    expect(downbeatIndex(effectiveBeats(detected, 6, shifted), detected, shifted)).toBe(4)
+    const manual = { factor: 1, manualBpm: 60, offsetMs: 250, downbeat: 1 }
+    expect(downbeatIndex(effectiveBeats(detected, 5, manual), detected, manual)).toBe(3)
   })
 })

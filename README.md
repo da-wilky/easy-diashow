@@ -1,6 +1,6 @@
-# easy-diashow
+# Easy Diashow
 
-Web app that turns images and music into an MP4 slideshow whose image transitions land on the beats of the music. Everything runs in the browser: the server only delivers static files, and no image, audio or video data leaves the device.
+Web app (German and English) that turns images and music into an MP4 slideshow whose image transitions land on the beats of the music. Everything runs in the browser: the server only delivers static files, and no image, audio or video data leaves the device.
 
 ## Development
 

@@ -1,7 +1,6 @@
 import { isQuotaError } from '../lib/storage'
+import { i18n } from './i18n.svelte'
 
 export function storageError(error: unknown) {
-  return isQuotaError(error)
-    ? 'Der Speicher des Browsers ist voll. Bitte Projekte oder Dateien löschen und erneut versuchen.'
-    : `Speichern fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+  return isQuotaError(error) ? i18n.m.quotaFull : i18n.m.saveFailed(error instanceof Error ? error.message : String(error))
 }

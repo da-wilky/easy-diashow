@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import type { ExportStage } from '../lib/export'
   import type { Project } from '../lib/project/types'
   import { readBlob } from '../lib/storage'
@@ -7,16 +8,10 @@
 
   let { project, timeline, disabled }: { project: Project; timeline: Timeline; disabled: boolean } = $props()
 
-  const STAGES: Record<ExportStage | 'prepare', string> = {
-    prepare: 'Export wird vorbereitet',
-    decode: 'Musik wird dekodiert',
-    video: 'Bilder werden gerendert',
-    audio: 'Ton wird kodiert',
-    finalize: 'Datei wird fertiggestellt',
-  }
+  const m = $derived(i18n.m)
 
   let dialog: HTMLDialogElement
-  let running = $state<{ stage: keyof typeof STAGES; fraction: number; abort: AbortController }>()
+  let running = $state<{ stage: ExportStage | 'prepare'; fraction: number; abort: AbortController }>()
   let error = $state('')
   let result = $state<string>()
 
@@ -29,8 +24,7 @@
       const { checkExportSupport } = await import('../lib/export/support')
       const support = await checkExportSupport(timeline.width, timeline.height)
       if (!support.video || !support.audio) {
-        error =
-          'Dieser Browser kann kein MP4-Video (H.264/AAC) erzeugen. Bitte eine aktuelle Version von Chrome, Edge, Safari oder Firefox auf einem Computer verwenden.'
+        error = m.unsupported
         return
       }
       const { exportVideo } = await import('../lib/export')
@@ -53,7 +47,7 @@
       link.click()
     } catch (e) {
       if (abort.signal.aborted) dialog.close()
-      else error = `Die Diashow konnte nicht erstellt werden: ${e instanceof Error ? e.message : String(e)}`
+      else error = m.exportError(e instanceof Error ? e.message : String(e))
     } finally {
       running = undefined
     }
@@ -69,36 +63,36 @@
 
 <button class="primary create" onclick={create} {disabled}>
   <Icon name="film" />
-  Diashow erstellen
+  {m.create}
 </button>
 
-<dialog bind:this={dialog} onclose={closed} aria-label="Diashow erstellen">
+<dialog bind:this={dialog} onclose={closed} aria-label={m.create}>
   <div class="stack">
     {#if running}
-      <h3>Deine Diashow entsteht …</h3>
-      <p role="status">{STAGES[running.stage]} … {Math.round(running.fraction * 100)} %</p>
+      <h3>{m.exporting}</h3>
+      <p role="status">{m.stages[running.stage]} … {Math.round(running.fraction * 100)} %</p>
       <progress max="1" value={running.fraction}></progress>
-      <p class="meta">Alles wird auf diesem Gerät berechnet. Lass dieses Fenster so lange geöffnet.</p>
+      <p class="meta">{m.keepOpen}</p>
       <div class="row">
         <span class="spacer"></span>
-        <button onclick={() => running?.abort.abort()}>Abbrechen</button>
+        <button onclick={() => running?.abort.abort()}>{m.cancel}</button>
       </div>
     {:else if result}
-      <h3>Fertig!</h3>
+      <h3>{m.done}</h3>
       <!-- svelte-ignore a11y_media_has_caption -->
       <video src={result} controls playsinline></video>
-      <p class="meta" role="status">Der Download wurde gestartet.</p>
+      <p class="meta" role="status">{m.downloadStarted}</p>
       <div class="row">
         <span class="spacer"></span>
-        <button onclick={() => dialog.close()}>Schließen</button>
-        <a class="button primary" href={result} download="diashow.mp4"><Icon name="download" /> diashow.mp4 herunterladen</a>
+        <button onclick={() => dialog.close()}>{m.close}</button>
+        <a class="button primary" href={result} download="diashow.mp4"><Icon name="download" /> {m.download}</a>
       </div>
     {:else if error}
-      <h3>Das hat nicht geklappt</h3>
+      <h3>{m.failed}</h3>
       <p class="error" role="alert">{error}</p>
       <div class="row">
         <span class="spacer"></span>
-        <button onclick={() => dialog.close()}>Schließen</button>
+        <button onclick={() => dialog.close()}>{m.close}</button>
       </div>
     {/if}
   </div>

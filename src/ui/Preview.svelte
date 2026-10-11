@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import { onDestroy, untrack } from 'svelte'
   import { SAMPLE_RATE, decodeAudio } from '../lib/audio/decode'
   import { schedulePlayback } from '../lib/audio/playback'
@@ -14,12 +15,15 @@
   const WIDTH = 640
   const AUDIO_LEAD = 0.05
 
+  const m = $derived(i18n.m)
+
   let { project, timeline }: { project: Project; timeline: Timeline } = $props()
 
   let canvas = $state<HTMLCanvasElement>()
   let position = $state(0)
   let playing = $state(false)
   let loading = $state(false)
+  let volume = $state(1)
   const height = $derived(Math.round((WIDTH * timeline.height) / timeline.width))
   const empty = $derived(!timeline.segments.length)
 
@@ -30,6 +34,7 @@
   const buffers = new Map<string, AudioBuffer>()
   let compositor: Compositor | undefined
   let context: AudioContext | undefined
+  let output: GainNode | undefined
   let stopAudio = () => {}
   let startedAt = 0
   let startedFrom = 0
@@ -72,10 +77,21 @@
     else frameRequest = requestAnimationFrame(tick)
   }
 
+  function setVolume(value: number) {
+    volume = value
+    // squared: loudness is heard roughly logarithmically, a linear gain does almost nothing in the upper half and jumps at the bottom
+    if (context && output) output.gain.setTargetAtTime(value ** 2, context.currentTime, 0.015)
+  }
+
   async function play() {
     if (!compositor || loading) return
     if (position >= timeline.duration - 0.05) position = 0
     context ??= new AudioContext({ sampleRate: SAMPLE_RATE })
+    if (!output) {
+      output = context.createGain()
+      output.connect(context.destination)
+    }
+    output.gain.value = volume ** 2
     await context.resume()
     loading = true
     try {
@@ -86,7 +102,7 @@
     }
     startedAt = context.currentTime + AUDIO_LEAD
     startedFrom = position
-    stopAudio = schedulePlayback(context, timeline, buffers, startedFrom, startedAt)
+    stopAudio = schedulePlayback(context, timeline, buffers, startedFrom, startedAt, output)
     playing = true
     frameRequest = requestAnimationFrame(tick)
   }
@@ -129,22 +145,22 @@
   })
 </script>
 
-<section class="card preview" aria-label="Vorschau">
+<section class="card preview" data-section="preview" aria-label={m.preview}>
   <div class="screen">
     <canvas bind:this={canvas} width={WIDTH} {height} hidden={empty}></canvas>
     {#if empty}
       <div class="placeholder">
         <Icon name="film" size={36} />
-        <p>Hier siehst du die Vorschau, sobald Bilder da sind.</p>
+        <p>{m.previewEmpty}</p>
       </div>
     {:else if !playing}
-      <button class="big" onclick={play} disabled={loading} aria-label="Vorschau abspielen">
+      <button class="big" onclick={play} disabled={loading} aria-label={m.playPreview}>
         <Icon name="play" size={30} />
       </button>
     {/if}
   </div>
   <div class="controls">
-    <button class="ghost icon" onclick={() => (playing ? pause() : play())} disabled={empty || loading} aria-label={playing ? 'Vorschau anhalten' : 'Vorschau fortsetzen'}>
+    <button class="ghost icon" onclick={() => (playing ? pause() : play())} disabled={empty || loading} aria-label={playing ? m.pausePreview : m.resumePreview}>
       <Icon name={playing ? 'pause' : 'play'} />
     </button>
     <input
@@ -154,12 +170,26 @@
       step={1 / timeline.fps}
       value={position}
       disabled={empty}
-      aria-label="Position in der Vorschau"
+      aria-label={m.previewPosition}
       oninput={(e) => seek(e.currentTarget.valueAsNumber)}
     />
     <span class="meta time" data-testid="preview-time">{formatDuration(position)} / {formatDuration(timeline.duration)}</span>
+    {#if timeline.audio.length}
+      <span class="volume">
+        <Icon name="volume" size={18} />
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={volume}
+          aria-label={m.previewVolume}
+          oninput={(e) => setVolume(e.currentTarget.valueAsNumber)}
+        />
+      </span>
+    {/if}
   </div>
-  {#if loading}<p class="meta" role="status">Musik wird geladen …</p>{/if}
+  {#if loading}<p class="meta" role="status">{m.loadingMusic}</p>{/if}
 </section>
 
 <style>
@@ -208,6 +238,13 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+  .volume {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--muted);
+    flex: 0 0 6.5rem;
   }
   .time {
     white-space: nowrap;

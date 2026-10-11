@@ -22,6 +22,8 @@ export interface TimelineTrack {
   /** beat times in seconds from track start, ascending; fewer than two means no usable grid */
   beats: number[]
   beatsPerImage: number
+  /** index of a beat that counts as "the one"; cuts fall on beats a multiple of `beatsPerImage` away from it */
+  beatPhase: number
 }
 
 export interface Segment {

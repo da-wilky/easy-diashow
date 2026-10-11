@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import { projectTimeline } from '../lib/project/timeline'
   import type { Project } from '../lib/project/types'
   import { saveProject } from '../lib/storage'
   import { MAX_VIDEO_SECONDS } from '../lib/timeline/types'
+  import ConfirmDialog from './ConfirmDialog.svelte'
   import ExportPanel from './ExportPanel.svelte'
   import { formatDuration } from './format'
   import Icon from './Icon.svelte'
@@ -11,6 +13,8 @@
   import Preview from './Preview.svelte'
   import SettingsPanel from './SettingsPanel.svelte'
   import TrackList from './TrackList.svelte'
+
+  const m = $derived(i18n.m)
 
   let { initial, onclose }: { initial: Project; onclose: () => void } = $props()
 
@@ -22,6 +26,8 @@
   let fileDrag = $state(false)
   let images: ImageGrid
   let tracks: TrackList
+  let dialog: ConfirmDialog
+  const confirm = (text: string, action: string) => dialog.ask(text, action)
 
   let loaded = false
   $effect(() => {
@@ -71,23 +77,23 @@
 />
 
 <div class="titlebar">
-  <button class="ghost icon" onclick={onclose} aria-label="Zur Projektliste"><Icon name="back" /></button>
+  <button class="ghost icon" onclick={onclose} aria-label={m.backToProjects}><Icon name="back" /></button>
   <h2>{project.name}</h2>
   <span class="meta saved" class:error={saveError} role="status">
     {#if saveError}
       {saveError}
     {:else if saved}
-      <Icon name="check" size={16} /> <span class="text">Alle Änderungen gespeichert</span>
+      <Icon name="check" size={16} /> <span class="text">{m.saved}</span>
     {:else}
-      Speichert …
+      {m.saving}
     {/if}
   </span>
 </div>
 
 <div class="layout">
   <div class="stack">
-    <ImageGrid bind:this={images} bind:project bind:pending />
-    <TrackList bind:this={tracks} bind:project bind:pending />
+    <ImageGrid bind:this={images} bind:project bind:pending {confirm} />
+    <TrackList bind:this={tracks} bind:project bind:pending {confirm} />
   </div>
   <aside>
     <Preview {project} {timeline} />
@@ -98,22 +104,24 @@
 <div class="bar">
   <div class="inner">
     <div class="stats">
-      <span>Video <strong data-testid="video-duration">{formatDuration(timeline.duration)} min</strong></span>
+      <span>{m.video} <strong data-testid="video-duration">{formatDuration(timeline.duration)} min</strong></span>
       {#if project.tracks.length}
-        <span>Musik <strong>{formatDuration(musicSeconds)} min</strong></span>
-        {#if musicSeconds < timeline.duration}<span class="meta">Musik wird wiederholt</span>{/if}
+        <span>{m.music} <strong>{formatDuration(musicSeconds)} min</strong></span>
+        {#if musicSeconds < timeline.duration}<span class="meta">{m.musicRepeats}</span>{/if}
       {/if}
       {#if tooLong}
-        <span class="error" role="alert">Länger als {MAX_VIDEO_SECONDS / 60} Minuten: bitte weniger Bilder oder eine kürzere Zeit pro Bild wählen.</span>
+        <span class="error" role="alert">{m.tooLong(MAX_VIDEO_SECONDS / 60)}</span>
       {/if}
     </div>
     <ExportPanel {project} {timeline} disabled={pending > 0 || !project.images.length || tooLong} />
   </div>
 </div>
 
+<ConfirmDialog bind:this={dialog} />
+
 {#if fileDrag}
   <div class="veil" aria-hidden="true">
-    <div><Icon name="plus" size={40} /> Bilder und Musik hier ablegen</div>
+    <div><Icon name="plus" size={40} /> {m.dropHere}</div>
   </div>
 {/if}
 

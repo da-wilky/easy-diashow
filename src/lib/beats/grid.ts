@@ -3,6 +3,8 @@ export interface BeatAdjust {
   factor: number
   manualBpm: number | null
   offsetMs: number
+  /** how many beats after the first detected beat "the one" lies; absent in projects saved before it existed */
+  downbeat?: number
 }
 
 export const BEAT_OPTIONS = [1, 2, 4, 8, 16] as const
@@ -42,6 +44,12 @@ export function effectiveBeats(detected: number[], duration: number, adjust: Bea
   const after: number[] = []
   for (let t = beats.at(-1)! + interval; t + offset < duration; t += interval) after.push(t)
   return [...before, ...beats, ...after].map((b) => b + offset).filter((b) => b >= 0 && b < duration)
+}
+
+/** index in `beats` (from `effectiveBeats`) of the beat the user declared as "the one" */
+export function downbeatIndex(beats: number[], detected: number[], adjust: BeatAdjust) {
+  const first = (detected[0] ?? 0) + adjust.offsetMs / 1000
+  return Math.max(beats.findIndex((b) => b >= first - 1e-6), 0) + (adjust.downbeat ?? 0)
 }
 
 export function beatOptions(bpm: number) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   import { LIMITS, type Project } from '../lib/project/types'
   import { removeBlob, writeBlob } from '../lib/storage'
   import Icon from './Icon.svelte'
@@ -8,18 +9,19 @@
   import TransitionPicker from './TransitionPicker.svelte'
 
   const WATERMARK_FILE = 'watermark'
-  const BEAT_MODES = [
-    { value: 'beats', label: 'Beats pro Bild' },
-    { value: 'seconds', label: 'Wunschzeit' },
-  ] as const
-  const RESOLUTION_OPTIONS = [
-    { value: '1080', label: '1080p', hint: 'Full HD' },
-    { value: '720', label: '720p', hint: 'HD' },
-    { value: '480', label: '480p', hint: 'klein' },
-  ] as const
 
   let { project = $bindable() }: { project: Project } = $props()
 
+  const m = $derived(i18n.m)
+  const beatModes = $derived([
+    { value: 'beats', label: m.beatsPerImage },
+    { value: 'seconds', label: m.targetTime },
+  ] as const)
+  const resolutions = $derived([
+    { value: '1080', label: '1080p', hint: 'Full HD' },
+    { value: '720', label: '720p', hint: 'HD' },
+    { value: '480', label: '480p', hint: m.small },
+  ] as const)
   let error = $state('')
   const hasMusic = $derived(project.tracks.length > 0)
 
@@ -27,7 +29,7 @@
     if (!file) return
     error = ''
     if (!(await createImageBitmap(file).then((b) => (b.close(), true), () => false))) {
-      error = `${file.name} konnte nicht als Bild gelesen werden.`
+      error = m.unreadableImage(file.name)
       return
     }
     try {
@@ -44,26 +46,26 @@
   }
 </script>
 
-<section class="card stack" aria-label="Stil und Timing">
+<section class="card stack" aria-label={m.stepStyle}>
   <div class="step">
     <span class="number">3</span>
-    <h3>Stil &amp; Timing</h3>
+    <h3>{m.stepStyle}</h3>
   </div>
 
   <label class="switch" class:disabled={!hasMusic}>
     <input type="checkbox" role="switch" bind:checked={project.settings.beatSync} disabled={!hasMusic} />
     <span class="track" aria-hidden="true"></span>
     <span>
-      Übergänge auf den Beat legen
-      <small class="meta">{hasMusic ? 'Jeder Bildwechsel fällt genau auf einen Schlag der Musik.' : 'Füge zuerst Musik hinzu.'}</small>
+      {m.beatSync}
+      <small class="meta">{hasMusic ? m.beatSyncHint : m.needMusic}</small>
     </span>
   </label>
 
   {#if project.settings.beatSync}
-    <Segmented label="Dauer pro Bild festlegen über" options={BEAT_MODES} bind:value={project.settings.beatMode} />
+    <Segmented label={m.durationVia} options={beatModes} bind:value={project.settings.beatMode} />
     {#if project.settings.beatMode === 'seconds'}
       <NumberField
-        label="Wunschzeit pro Bild"
+        label={m.targetTimePerImage}
         bind:value={
           () => project.settings.targetSeconds,
           (v) => {
@@ -73,29 +75,29 @@
         }
         {...LIMITS.secondsPerImage}
       />
-      <p class="meta">Bei jedem Musikstück ist die Beat-Anzahl vorgewählt, die der Wunschzeit am nächsten kommt.</p>
+      <p class="meta">{m.targetHint}</p>
     {:else}
-      <p class="meta">Die Beat-Anzahl stellst du bei jedem Musikstück ein.</p>
+      <p class="meta">{m.beatsHint}</p>
     {/if}
   {:else}
-    <NumberField label="Sekunden pro Bild" bind:value={project.settings.secondsPerImage} {...LIMITS.secondsPerImage} />
+    <NumberField label={m.secondsPerImage} bind:value={project.settings.secondsPerImage} {...LIMITS.secondsPerImage} />
   {/if}
 
   <TransitionPicker bind:value={project.settings.transition} />
   {#if project.settings.transition !== 'none'}
-    <NumberField label="Dauer des Übergangs" bind:value={project.settings.transitionDuration} {...LIMITS.transitionDuration} />
+    <NumberField label={m.transitionDuration} bind:value={project.settings.transitionDuration} {...LIMITS.transitionDuration} />
   {/if}
-  <NumberField label="Einblenden aus Schwarz" bind:value={project.settings.fadeIn} {...LIMITS.fadeIn} />
-  <NumberField label="Ausblenden nach Schwarz" bind:value={project.settings.fadeOut} {...LIMITS.fadeOut} />
+  <NumberField label={m.fadeIn} bind:value={project.settings.fadeIn} {...LIMITS.fadeIn} />
+  <NumberField label={m.fadeOut} bind:value={project.settings.fadeOut} {...LIMITS.fadeOut} />
 
-  <Segmented label="Auflösung" options={RESOLUTION_OPTIONS} bind:value={project.settings.resolution} />
+  <Segmented label={m.resolution} options={resolutions} bind:value={project.settings.resolution} />
 
   <div>
-    <p class="label">Wasserzeichen</p>
+    <p class="label">{m.watermark}</p>
     <div class="row">
       <label class="button">
         <Icon name="image" />
-        {project.watermark ? 'Wasserzeichen ersetzen' : 'Wasserzeichen wählen'}
+        {project.watermark ? m.replaceWatermark : m.chooseWatermark}
         <input
           type="file"
           accept=".png,.jpg,.jpeg,image/png,image/jpeg"
@@ -106,11 +108,11 @@
         />
       </label>
       {#if project.watermark}
-        <button class="ghost icon danger" onclick={removeWatermark} aria-label="Wasserzeichen entfernen"><Icon name="trash" /></button>
+        <button class="ghost icon danger" onclick={removeWatermark} aria-label={m.removeWatermark}><Icon name="trash" /></button>
         <span class="meta">{project.watermark}</span>
       {/if}
     </div>
-    <p class="meta note">Erscheint klein unten rechts in jedem Bild.</p>
+    <p class="meta note">{m.watermarkHint}</p>
   </div>
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>

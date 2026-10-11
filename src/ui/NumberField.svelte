@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { i18n } from './i18n.svelte'
   let {
     label,
     value = $bindable(),
@@ -23,7 +24,7 @@
     <input {id} type="number" {min} {max} {step} {value} onchange={(e) => commit(e.currentTarget)} />
     {unit}
   </span>
-  <input type="range" {min} {max} {step} bind:value aria-label="{label} (Regler)" />
+  <input type="range" {min} {max} {step} bind:value aria-label={i18n.m.slider(label)} />
 </div>
 
 <style>

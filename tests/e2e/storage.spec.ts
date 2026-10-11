@@ -48,7 +48,11 @@ test('projects persist, can be reordered, renamed, deleted and wiped', async ({ 
   expect(await thumbnail.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(640)
 
   await page.getByRole('button', { name: 'Nach Name sortieren' }).click()
-  expect(await imageOrder(page)).toEqual(['img1.png', 'img2.png', 'img10.png'])
+  await page.getByRole('dialog').getByRole('button', { name: 'Abbrechen' }).click()
+  expect(await imageOrder(page)).toEqual(['img2.png', 'img10.png', 'img1.png'])
+  await page.getByRole('button', { name: 'Nach Name sortieren' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Sortieren' }).click()
+  await expect.poll(() => imageOrder(page)).toEqual(['img1.png', 'img2.png', 'img10.png'])
   await page.getByRole('button', { name: 'img2.png entfernen' }).click()
   expect(await imageOrder(page)).toEqual(['img1.png', 'img10.png'])
   await expect(page.getByText('Alle Änderungen gespeichert')).toBeVisible()
@@ -125,6 +129,68 @@ test('songs are reordered by dragging and beat settings show durations per track
   await expect(page.getByLabel('Übergänge auf den Beat legen')).toBeDisabled()
 })
 
+test('several images or songs are moved and removed together', async ({ page }) => {
+  const { images, tracks } = ensureFixtures()
+  const names = (...numbers: number[]) => numbers.map((n) => `img${n}.png`)
+  const confirm = (label: string) => page.getByRole('dialog').getByRole('button', { name: label, exact: true }).click()
+  await page.goto('/')
+  await createProject(page, 'Auswahl')
+  await page.getByLabel('Bilder hinzufügen').setInputFiles(images.slice(0, 6))
+  await page.getByLabel('Musik hinzufügen').setInputFiles(tracks)
+  await expect(page.getByRole('listitem', { name: 'click90.mp3' })).toBeVisible()
+  await expect.poll(() => imageOrder(page)).toEqual(names(1, 2, 3, 4, 5, 6))
+
+  const selectMode = (section: string) => page.locator(`[data-section="${section}"]`).getByRole('button', { name: 'Auswählen', exact: true })
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await selectMode('images').click()
+  await page.getByRole('checkbox', { name: 'img2.png auswählen' }).click()
+  await page.getByRole('checkbox', { name: 'img4.png auswählen' }).click({ modifiers: ['Shift'] })
+  await expect(page.getByText('3 ausgewählt')).toBeVisible()
+  await page.getByRole('button', { name: 'Ans Ende' }).click()
+  await expect.poll(() => imageOrder(page)).toEqual(names(1, 5, 6, 2, 3, 4))
+  await page.getByRole('button', { name: 'An den Anfang' }).click()
+  await expect.poll(() => imageOrder(page)).toEqual(names(2, 3, 4, 1, 5, 6))
+
+  await page.getByRole('button', { name: 'Fertig' }).click()
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await selectMode('images').click()
+  await page.getByRole('checkbox', { name: 'img2.png auswählen' }).click()
+  await page.getByRole('listitem', { name: /img1\.png/ }).click({ position: { x: 60, y: 45 } })
+  await expect(page.getByText('2 ausgewählt')).toBeVisible()
+  await drag(page, page.getByRole('listitem', { name: /img1\.png/ }), imageItems(page).last(), { x: 60, y: 60 })
+  await expect.poll(() => imageOrder(page)).toEqual(names(3, 4, 5, 6, 2, 1))
+  await page.getByRole('listitem', { name: /img2\.png/ }).focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect.poll(() => imageOrder(page)).toEqual(names(3, 4, 5, 2, 1, 6))
+
+  await page.getByRole('button', { name: 'Auswahl entfernen' }).click()
+  await confirm('Entfernen')
+  await expect.poll(() => imageOrder(page)).toEqual(names(3, 4, 5, 6))
+  await expect(page.getByRole('toolbar', { name: 'Auswahl' })).toHaveCount(0)
+
+  await selectMode('music').click()
+  await page.getByRole('checkbox', { name: 'click120.mp3 auswählen' }).click()
+  await page.getByRole('button', { name: 'Auswahl entfernen' }).click()
+  await confirm('Entfernen')
+  await expect(trackItems(page)).toHaveCount(1)
+  await page.getByRole('button', { name: 'Alle Musikstücke entfernen' }).click()
+  await confirm('Alle entfernen')
+  await expect(page.getByText('Optional: MP3-Dateien')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Alle Bilder entfernen' }).click()
+  await confirm('Alle entfernen')
+  await expect(page.getByText('Zieh deine Fotos hierher')).toBeVisible()
+  await expect(page.getByText('Alle Änderungen gespeichert')).toBeVisible()
+  const storedFiles = () =>
+    page.evaluate(async () => {
+    const root = await navigator.storage.getDirectory()
+    const files: string[] = []
+    for await (const dir of root.values()) for await (const name of (dir as FileSystemDirectoryHandle).keys()) files.push(name)
+    return files
+    })
+  await expect.poll(storedFiles).toEqual([])
+})
+
 test('privacy notice is reachable and nothing is requested from other hosts', async ({ page }) => {
   const foreign: string[] = []
   page.on('request', (r) => {
@@ -136,6 +202,7 @@ test('privacy notice is reachable and nothing is requested from other hosts', as
   await expect(page.getByRole('heading', { name: 'Datenschutzhinweis' })).toBeVisible()
   await page.getByRole('link', { name: 'Zurück zur Anwendung' }).click()
   await expect(page.getByRole('heading', { name: 'Projekte' })).toBeVisible()
+  expect((await page.request.get('/favicon.svg')).headers()['content-type']).toContain('image/svg')
   expect(foreign).toEqual([])
   expect(await page.context().cookies()).toEqual([])
 })
