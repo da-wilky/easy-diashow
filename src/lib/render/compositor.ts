@@ -1,6 +1,7 @@
 import { toFramePlan, type FramePlan } from '../timeline/frames'
 import type { Timeline } from '../timeline/types'
 import { WATERMARK_OFFSET, letterbox, watermarkRect } from './layout'
+import { drawTransition } from './transitions'
 
 /** Draws timeline frames, keeping at most two composed images in memory. Fastest when frames ascend. */
 export class Compositor {
@@ -76,18 +77,10 @@ export class Compositor {
     const from = await this.slide(needed[0]!)
     const to = transition && (await this.slide(transition.to))
     g.globalAlpha = 1
-    g.drawImage(from, 0, 0)
     if (transition && to) {
       const progress = (frame - transition.start) / (transition.end - transition.start)
-      if (transition.type === 'crossfade') {
-        g.globalAlpha = progress
-        g.drawImage(to, 0, 0)
-      } else {
-        const left = transition.type === 'wipe' ? 0 : Math.floor((width / 2) * (1 - progress))
-        const right = transition.type === 'wipe' ? Math.floor(width * progress) : Math.floor((width / 2) * (1 + progress))
-        if (right > left) g.drawImage(to, left, 0, right - left, height, left, 0, right - left, height)
-      }
-    }
+      drawTransition(g, transition.type, from, to, progress, width, height)
+    } else g.drawImage(from, 0, 0)
 
     const fadeOutStart = plan.totalFrames - plan.fadeOutFrames
     let black = 0

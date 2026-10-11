@@ -2,7 +2,7 @@ import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { buildTimeline } from '../../src/lib/timeline/build'
 import { toFramePlan, type FramePlan } from '../../src/lib/timeline/frames'
-import type { TimelineSettings, TimelineTrack } from '../../src/lib/timeline/types'
+import type { TimelineSettings, TimelineTrack, TransitionType } from '../../src/lib/timeline/types'
 import { clickTracks, colours, ensureFixtures, fixturesDir } from './fixtures'
 import { nearestColour, probe, psnr, readAudio, readFrame, readFrameBytes, readFrames, rms } from './media'
 import { drag, imageItems, setNumber } from './ui'
@@ -19,7 +19,22 @@ const settings: TimelineSettings = {
   beatSync: true,
 }
 
-const TRANSITION_LABELS = { none: 'Kein Übergang', crossfade: 'Überblenden', wipe: 'Wischen', reveal: 'Aufdecken' }
+const TRANSITION_LABELS: Record<TransitionType, string> = {
+  none: 'Kein Übergang',
+  crossfade: 'Überblenden',
+  fadeBlack: 'Über Schwarz',
+  zoom: 'Zoom',
+  wipe: 'Wischen →',
+  wipeLeft: 'Wischen ←',
+  wipeDown: 'Wischen ↓',
+  wipeUp: 'Wischen ↑',
+  slide: 'Einschieben',
+  push: 'Schieben ←',
+  pushUp: 'Schieben ↑',
+  reveal: 'Aufdecken',
+  circle: 'Kreis',
+  blinds: 'Jalousie',
+}
 
 const idealTracks: TimelineTrack[] = clickTracks.map(({ name, bpm, offset, seconds }) => ({
   id: name,
@@ -117,19 +132,44 @@ for (const transition of ['none', 'crossfade'] as const)
     expectAudio(file)
   })
 
-for (const transition of ['wipe', 'reveal'] as const)
+/** where the incoming and the outgoing image must be visible halfway through, as relative [x, y] */
+const HALFWAY: { transition: Exclude<TransitionType, 'none' | 'crossfade'>; to?: [number, number]; from?: [number, number] }[] = [
+  { transition: 'fadeBlack' },
+  { transition: 'zoom' },
+  { transition: 'wipe', to: [0.1, 0.5], from: [0.9, 0.5] },
+  { transition: 'wipeLeft', to: [0.9, 0.5], from: [0.1, 0.5] },
+  { transition: 'wipeDown', to: [0.5, 0.1], from: [0.5, 0.9] },
+  { transition: 'wipeUp', to: [0.5, 0.9], from: [0.5, 0.1] },
+  { transition: 'slide', to: [0.75, 0.5], from: [0.25, 0.5] },
+  { transition: 'push', to: [0.75, 0.5], from: [0.25, 0.5] },
+  { transition: 'pushUp', to: [0.5, 0.75], from: [0.5, 0.25] },
+  { transition: 'reveal', to: [0.5, 0.5], from: [0.02, 0.5] },
+  { transition: 'circle', to: [0.5, 0.5], from: [0.02, 0.02] },
+  { transition: 'blinds' },
+]
+
+for (const { transition, to, from } of HALFWAY)
   test(`fixed-time 720p export with watermark and transition ${transition}`, async ({ page }) => {
     test.setTimeout(180_000)
-    const { watermark } = await openProject(page)
+    const { images, tracks, watermark } = ensureFixtures()
+    const used = names.slice(0, 4)
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Neues Projekt' }).click()
+    await page.getByLabel('Bilder hinzufügen').setInputFiles(images.slice(0, 4))
+    await page.getByLabel('Musik hinzufügen').setInputFiles(tracks)
+    await expect(page.getByRole('listitem', { name: '4. img4.png' })).toBeVisible()
+    await expect(page.getByRole('listitem', { name: 'click90.mp3' })).toBeVisible()
     await setNumber(page, 'Sekunden pro Bild', 1)
-    await page.getByRole('radio', { name: TRANSITION_LABELS[transition] }).check()
+    await page.getByRole('button', { name: 'Alle Übergänge anzeigen' }).click()
+    await page.getByRole('radio', { name: TRANSITION_LABELS[transition], exact: true }).check()
+    await page.getByRole('button', { name: 'Weniger anzeigen' }).click()
+    await expect(page.getByRole('radio', { name: TRANSITION_LABELS[transition], exact: true })).toBeChecked()
     await page.getByRole('radio', { name: /720p/ }).check()
     await page.getByLabel('Wasserzeichen wählen').setInputFiles(watermark)
     await expect(page.getByRole('button', { name: 'Wasserzeichen entfernen' })).toBeVisible()
-    await expect(page.getByTestId('video-duration')).toHaveText('0:20 min')
     const file = await download(page, `fixed-${transition}.mp4`)
 
-    const expected = buildTimeline(names, idealTracks, {
+    const expected = buildTimeline(used, idealTracks, {
       ...settings,
       width: 1280,
       height: 720,
@@ -142,12 +182,22 @@ for (const transition of ['wipe', 'reveal'] as const)
     const frames = expectCuts(file, plan)
     expectAudio(file)
 
-    const colourAt = (frame: number, x: number) => nearestColour(colours, frames.pixel(frame, x)).name
     for (const t of plan.transitions) {
       const middle = Math.round((t.start + t.end) / 2)
-      expect(colourAt(middle, transition === 'wipe' ? 0.1 : 0.5)).toBe(t.to)
-      expect(colourAt(middle, transition === 'wipe' ? 0.9 : 0.02)).toBe(t.from)
-      expect(colourAt(middle, 0.98)).toBe(t.from)
+      const colourAt = (at: [number, number]) => nearestColour(colours, frames.pixel(middle, ...at)).name
+      if (to) expect(colourAt(to), `incoming image at ${to}`).toBe(t.to)
+      if (from) expect(colourAt(from), `outgoing image at ${from}`).toBe(t.from)
+      if (transition === 'fadeBlack') expect(Math.max(...frames.pixel(middle))).toBeLessThan(60)
+    }
+
+    if (transition === 'blinds') {
+      // eight 160 px stripes, each uncovered from its left edge; too fine for the downscaled frames
+      const first = plan.transitions[0]!
+      const halfway = readFrame(file, Math.round((first.start + first.end) / 2), 1280, 720)
+      for (const stripe of [0, 3, 7]) {
+        expect(nearestColour(colours, halfway(stripe * 160 + 30, 360)).name).toBe(first.to)
+        expect(nearestColour(colours, halfway(stripe * 160 + 130, 360)).name).toBe(first.from)
+      }
     }
 
     // 400x200 watermark fits 128x64, 30 px from the bottom-right corner

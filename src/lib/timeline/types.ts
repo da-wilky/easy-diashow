@@ -2,7 +2,15 @@ export const FPS = 30
 export const MAX_VIDEO_SECONDS = 30 * 60
 export const AUDIO_CROSSFADE_SECONDS = 1
 
-export type TransitionType = 'none' | 'crossfade' | 'wipe' | 'reveal'
+export const TRANSITION_GROUPS = {
+  fades: ['none', 'crossfade', 'fadeBlack', 'zoom'],
+  wipes: ['wipe', 'wipeLeft', 'wipeDown', 'wipeUp'],
+  slides: ['slide', 'push', 'pushUp'],
+  shapes: ['reveal', 'circle', 'blinds'],
+} as const
+
+export type TransitionGroup = keyof typeof TRANSITION_GROUPS
+export type TransitionType = (typeof TRANSITION_GROUPS)[TransitionGroup][number]
 
 export interface TimelineSettings {
   width: number
