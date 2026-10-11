@@ -43,5 +43,7 @@ export function ensureFixtures() {
       ffmpeg(['-f', 'lavfi', '-i', `aevalsrc='${click}':s=44100:d=${seconds}`, '-ac', '2', '-b:a', '128k', file])
     return file
   })
-  return { images, tracks }
+  const watermark = path.join(fixturesDir, 'watermark.png')
+  if (!existsSync(watermark)) ffmpeg(['-f', 'lavfi', '-i', 'color=c=0x00ff80:s=400x200', '-frames:v', '1', watermark])
+  return { images, tracks, watermark }
 }

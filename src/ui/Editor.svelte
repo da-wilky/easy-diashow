@@ -1,114 +1,74 @@
 <script lang="ts">
-  import { SAMPLE_RATE, decodeAudio, toMono } from '../lib/audio/decode'
-  import { analyseInWorker } from '../lib/beats'
   import { projectTimeline } from '../lib/project/timeline'
   import type { Project } from '../lib/project/types'
-  import { makeThumbnail, thumbnailName } from '../lib/render/thumbnail'
-  import { readBlob, saveProject, writeBlob } from '../lib/storage'
-  import type { TransitionType } from '../lib/timeline/types'
+  import { saveProject } from '../lib/storage'
+  import { MAX_VIDEO_SECONDS } from '../lib/timeline/types'
+  import ExportPanel from './ExportPanel.svelte'
+  import { formatDuration } from './format'
+  import ImageGrid from './ImageGrid.svelte'
+  import { storageError } from './messages'
+  import SettingsPanel from './SettingsPanel.svelte'
+  import TrackList from './TrackList.svelte'
 
   let { initial, onclose }: { initial: Project; onclose: () => void } = $props()
 
   // svelte-ignore state_referenced_locally
   let project = $state($state.snapshot(initial))
-  let status = $state('')
   let pending = $state(0)
-  let busy = $derived(pending > 0)
   let saved = $state(true)
+  let saveError = $state('')
 
-  let firstRun = true
+  let loaded = false
   $effect(() => {
     const snapshot = $state.snapshot(project)
-    if (firstRun) {
-      firstRun = false
+    if (!loaded) {
+      loaded = true
       return
     }
     saved = false
-    saveProject({ ...snapshot, modified: Date.now() }).then(() => (saved = true))
+    saveProject({ ...snapshot, modified: Date.now() }).then(
+      () => {
+        saved = true
+        saveError = ''
+      },
+      (e) => (saveError = storageError(e)),
+    )
   })
 
-  const collator = new Intl.Collator(undefined, { numeric: true })
-
-  async function addImages(files: FileList) {
-    pending++
-    for (const file of files) {
-      const id = crypto.randomUUID()
-      await writeBlob(project.id, thumbnailName(id), await makeThumbnail(file))
-      await writeBlob(project.id, id, file)
-      project.images.push({ id, name: file.name })
-    }
-    project.images.sort((a, b) => collator.compare(a.name, b.name))
-    pending--
-  }
-
-  async function addTracks(files: FileList) {
-    pending++
-    for (const file of files) {
-      status = `Analysiere ${file.name}`
-      const buffer = await decodeAudio(file)
-      const analysis = await analyseInWorker(toMono(buffer), SAMPLE_RATE).catch(() => null)
-      const id = crypto.randomUUID()
-      await writeBlob(project.id, id, file)
-      project.tracks.push({
-        id,
-        name: file.name,
-        duration: buffer.duration,
-        analysis,
-        adjust: { factor: 1, manualBpm: null, offsetMs: 0 },
-        beatsPerImage: 4,
-        targetBeats: null,
-      })
-    }
-    status = ''
-    pending--
-  }
-
-  async function create() {
-    pending++
-    const { exportVideo } = await import('../lib/export')
-    const load = async (ids: string[]) =>
-      new Map(await Promise.all(ids.map(async (id) => [id, await readBlob(project.id, id)] as const)))
-    const video = await exportVideo(
-      {
-        timeline: projectTimeline($state.snapshot(project)),
-        images: await load(project.images.map((i) => i.id)),
-        tracks: await load(project.tracks.map((t) => t.id)),
-        watermark: null,
-      },
-      (stage, fraction) => (status = `${stage} ${Math.round(fraction * 100)} %`),
-      new AbortController().signal,
-    )
-    const link = document.createElement('a')
-    link.href = URL.createObjectURL(video)
-    link.download = 'diashow.mp4'
-    link.click()
-    status = 'Fertig'
-    pending--
-  }
+  const timeline = $derived(projectTimeline(project))
+  const musicSeconds = $derived(project.tracks.reduce((sum, t) => sum + t.duration, 0))
+  const tooLong = $derived(timeline.duration > MAX_VIDEO_SECONDS)
 </script>
 
-<button onclick={onclose}>Zur Projektliste</button>
+<div class="row">
+  <button onclick={onclose}>Zur Projektliste</button>
+  <span class="meta" role="status">{saveError || (saved ? 'Alle Änderungen gespeichert' : 'Speichert …')}</span>
+</div>
 <h2>{project.name}</h2>
-<p>{saved ? 'Alle Änderungen gespeichert' : 'Speichert …'}</p>
-<label>Bilder <input type="file" multiple accept="image/png,image/jpeg" onchange={(e) => addImages(e.currentTarget.files!)} /></label>
-<ul>
-  {#each project.images as image (image.id)}
-    <li>{image.name}</li>
-  {/each}
-</ul>
-<label>Musik <input type="file" multiple accept="audio/*" onchange={(e) => addTracks(e.currentTarget.files!)} /></label>
-<ul>
-  {#each project.tracks as track (track.id)}
-    <li>{track.name}: {track.analysis?.bpm.toFixed(1) ?? '–'} BPM</li>
-  {/each}
-</ul>
-<label><input type="checkbox" bind:checked={project.settings.beatSync} disabled={!project.tracks.length} /> Übergänge auf den Beat legen</label>
-<label for="transition">Übergang</label>
-<select id="transition" bind:value={project.settings.transition as TransitionType}>
-  <option value="none">Kein Übergang</option>
-  <option value="crossfade">Überblenden</option>
-  <option value="wipe">Wischen von links nach rechts</option>
-  <option value="reveal">Aufdecken von der Mitte</option>
-</select>
-<button onclick={create} disabled={busy || !project.images.length}>Diashow erstellen</button>
-<p role="status">{status}</p>
+
+<ImageGrid bind:project bind:pending />
+<TrackList bind:project bind:pending />
+<SettingsPanel bind:project />
+
+<section aria-label="Zusammenfassung" class="summary">
+  <p>
+    Länge des Videos: <strong data-testid="video-duration">{formatDuration(timeline.duration)} min</strong>
+    {#if project.tracks.length}· Länge der Musik: <strong>{formatDuration(musicSeconds)} min</strong>{/if}
+  </p>
+  {#if tooLong}
+    <p class="error" role="alert">
+      Das Video wäre länger als {MAX_VIDEO_SECONDS / 60} Minuten. Bitte weniger Bilder oder eine kürzere Zeit pro Bild wählen.
+    </p>
+  {/if}
+  <ExportPanel {project} {timeline} disabled={pending > 0 || !project.images.length || tooLong} />
+</section>
+
+<style>
+  .summary {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding-block: 0.75rem;
+  }
+</style>

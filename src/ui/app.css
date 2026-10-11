@@ -1,0 +1,160 @@
+:root {
+  color-scheme: light dark;
+  --surface: light-dark(#fafafa, #18181b);
+  --text: light-dark(#18181b, #f4f4f5);
+  --muted: light-dark(#52525b, #a1a1aa);
+  --border: light-dark(#d4d4d8, #3f3f46);
+  --accent: light-dark(#1d4ed8, #60a5fa);
+  --danger: light-dark(#b91c1c, #f87171);
+  font-family: system-ui, sans-serif;
+  line-height: 1.45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+}
+
+main {
+  max-width: 60rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+section {
+  margin-block: 1.5rem;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin-block: 0.5rem;
+}
+
+button,
+.button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button,
+.button {
+  min-height: 2.75rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+button.danger {
+  color: var(--danger);
+}
+
+.button input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.button:focus-within {
+  outline: 2px solid var(--accent);
+}
+
+input[type='number'],
+input:not([type]),
+select {
+  min-height: 2.75rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: transparent;
+}
+
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.field {
+  display: grid;
+  grid-template-columns: minmax(9rem, 14rem) minmax(6rem, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  margin-block: 0.6rem;
+}
+
+.field > select,
+.field > .row {
+  grid-column: 2 / -1;
+}
+
+.field .number input {
+  width: 5.5rem;
+}
+
+@media (max-width: 32rem) {
+  .field {
+    grid-template-columns: 1fr auto;
+  }
+  .field > label,
+  .field > span:first-child,
+  .field > select,
+  .field > .row {
+    grid-column: 1 / -1;
+  }
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: normal;
+}
+
+.error {
+  color: var(--danger);
+}
+
+footer {
+  max-width: 60rem;
+  margin: 2rem auto 5rem;
+  padding: 0 1rem;
+}

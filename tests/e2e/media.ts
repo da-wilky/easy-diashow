@@ -52,3 +52,13 @@ export function rms(samples: Float32Array, from = 0, to = samples.length) {
   for (let i = from; i < to; i++) sum += samples[i]! ** 2
   return Math.sqrt(sum / (to - from))
 }
+
+/** one frame at full resolution; returns a pixel reader */
+export function readFrame(file: string, frame: number, width: number, height: number) {
+  const raw = run('ffmpeg', ['-v', 'error', '-i', file, '-vf', `select=eq(n\\,${frame})`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'])
+  if (raw.length !== width * height * 3) throw new Error(`frame ${frame} is not ${width}x${height}`)
+  return (x: number, y: number): [number, number, number] => {
+    const o = (y * width + x) * 3
+    return [raw[o]!, raw[o + 1]!, raw[o + 2]!]
+  }
+}

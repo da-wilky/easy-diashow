@@ -63,7 +63,7 @@
           <button class="open" onclick={() => onopen(project)}>
             <strong>{project.name}</strong>
             <span class="meta">
-              {project.images.length} Bilder · {project.tracks.length} Musikstücke · {formatBytes(project.size)} · geändert {formatDate(project.modified)}
+              {project.images.length} {project.images.length === 1 ? "Bild" : "Bilder"} · {project.tracks.length} {project.tracks.length === 1 ? "Musikstück" : "Musikstücke"} · {formatBytes(project.size)} · geändert {formatDate(project.modified)}
             </span>
           </button>
           <button onclick={() => rename(project)} aria-label="{project.name} umbenennen">Umbenennen</button>
