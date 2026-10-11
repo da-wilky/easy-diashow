@@ -115,11 +115,19 @@ The agent must be able to verify the app without a human.
 - H.264/AAC export is impossible in a major browser even with the Mediabunny extensions.
 - Anything that would require a server component.
 
-## Unverified assumptions to check during M1
-- Exact WebCodecs support per browser (Chrome, Firefox, Safari, mobile).
-- Mediabunny API names used above (`canEncodeAudio`, `canEncodeVideo`) and current package names.
+## M1 findings
+- Beat library: `music-tempo` 1.0.3 (MIT, BeatRoot, last release 2022, CJS, no types). On 60 s click tracks (90/120/128/174 BPM): BPM exact, every beat within 13 ms, constant +7–10 ms lag. `@audio/beat` 3.0.0 (MIT): BPM off by 1 at 128/174, beats 28–440 ms off. `web-audio-beat-detector` 8.2.39 (MIT): returns only BPM + first-beat offset, no beat positions, so unusable here. Not yet judged on real songs.
+- Beat test tolerance: BPM ±1, beat positions ±25 ms.
+- Playwright Chromium from nixpkgs (`playwright-driver.browsers`, 1.59.1, Chrome 147 headless shell): encodes H.264 (High) natively; AAC not natively, works with `@mediabunny/aac-encoder`. E2E runs against it.
+- Render time, headless software encode: 180 s 1080p30 from ten 4000×3000 JPEGs with crossfades in 43 s (about 4× realtime), 18 MB.
+- AAC track ends up to one AAC frame (1024 samples) plus encoder padding longer than the video (20.032 s for 20 s); tests allow 50 ms.
+- Mediabunny 1.61: `canEncodeVideo('avc', …)`, `canEncodeAudio('aac')`, `registerAacEncoder()` confirmed. `AudioBufferSource` needs `AudioBuffer` (no Web Audio in workers): mix on the main thread, pass `Float32Array`s to the worker, feed `AudioSampleSource`.
+- TypeScript pinned to 6.x: `svelte-check` and `typescript-eslint` do not accept 7 yet.
+- Dependencies added beyond the named stack: `music-tempo`, `@sveltejs/vite-plugin-svelte`, `typescript-eslint`, `eslint-plugin-svelte`, `@eslint/js`, `globals`, `@types/node`.
+
+## Unverified assumptions
+- Exact WebCodecs support per browser (Firefox, Safari, mobile).
 - Safari storage eviction rules; OPFS quota on mobile.
-- nixpkgs attribute for Playwright browsers and its version.
 
 ## Not in scope
 - Server-side rendering, accounts, sharing, cloud sync.
