@@ -17,6 +17,7 @@ const settings: TimelineSettings = {
   fadeIn: 2,
   fadeOut: 3,
   beatSync: true,
+  audioCrossfade: 2,
 }
 
 const TRANSITION_LABELS: Record<TransitionType, string> = {
@@ -38,6 +39,7 @@ const TRANSITION_LABELS: Record<TransitionType, string> = {
 
 const idealTracks: TimelineTrack[] = clickTracks.map(({ name, bpm, offset, seconds }) => ({
   id: name,
+  offset: 0,
   duration: seconds,
   beats: Array.from({ length: Math.ceil(((seconds - offset) * bpm) / 60) }, (_, i) => offset + (i * 60) / bpm),
   beatsPerImage: 4,
@@ -228,6 +230,29 @@ test('a detailed image is sharp from the first frame after a transition', async 
   const progress = (middle - transition.start) / (transition.end - transition.start)
   const blend = before.map((v, i) => Math.round(v * (1 - progress) + settled[i]! * progress))
   expect(psnr(readFrameBytes(file, middle), blend)).toBeGreaterThan(35)
+})
+
+test('silence at the ends of a song is cut, and can be kept', async ({ page }) => {
+  test.setTimeout(180_000)
+  const { images, padded } = ensureFixtures()
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neues Projekt' }).click()
+  await page.getByLabel('Bilder hinzufügen').setInputFiles(images.slice(0, 2))
+  await page.getByLabel('Musik hinzufügen').setInputFiles(padded)
+  const song = page.getByRole('listitem', { name: 'padded.mp3' })
+  const trim = song.getByLabel(/Stille abschneiden \(2,8\d? s am Anfang, 4,\d+ s am Ende\)/)
+  await expect(trim).toBeChecked()
+  await expect(song.getByText('0:13 min')).toBeVisible()
+  await page.getByRole('radio', { name: /480p/ }).check()
+
+  // without the leading silence the first clicks fall into the second of the video that would otherwise be silent
+  const early = (file: string) => rms(readAudio(file), 48000 * 1, 48000 * 2.5)
+  const cut = early(await download(page, 'padded-cut.mp4'))
+  await trim.uncheck()
+  await expect(song.getByText('0:20 min')).toBeVisible()
+  const kept = early(await download(page, 'padded-kept.mp4'))
+  expect(cut).toBeGreaterThan(0.005)
+  expect(kept).toBeLessThan(cut / 20)
 })
 
 test('export can be cancelled', async ({ page }) => {

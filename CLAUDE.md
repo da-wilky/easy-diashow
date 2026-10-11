@@ -44,6 +44,7 @@ tests/fixtures/   generated, not committed
 Timeline JSON: fps, resolution, total duration, fade-in/out, segments (image id, start, end; contiguous, boundaries are the cuts), transitions (type, start, end, from, to; centred on a cut), audio clips (track id, start, natural end, offset, crossfade durations). All times in seconds; the renderer converts to frame indices once, by rounding absolute times.
 
 ## Timing rules
+- Songs: silence of a second or more at either end of a file (below -50 dBFS) is detected on upload and cut unless switched off per song; consecutive songs overlap by the `audioCrossfade` setting (default 2 s, 0 = hard cut).
 - Fixed time: fade-in, then per image `secondsPerImage` fully visible, transitions in between, fade-out (as the old app).
 - Beat sync: every cut is a beat of the track whose grid is active and in phase with its declared downbeat (`beatPhase`, set per song as a shift in beats from the first detected beat; downbeats are not detected automatically); a track's grid is active between the midpoints of its audio crossfades. Cuts are `beatsPerImage` beats apart; the first cut leaves the first image fully visible for at least that long; the fade-out starts on a beat. Transitions shrink when two cuts are closer than the transition duration. Tracks without tempo fall back to fixed steps.
 - Transitions are drawn by `lib/render/transitions.ts` (one case per type) and listed in groups in `TRANSITION_GROUPS`; the picker shows four basics and expands to all.

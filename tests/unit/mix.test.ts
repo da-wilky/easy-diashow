@@ -14,14 +14,15 @@ const settings: TimelineSettings = {
   fadeIn: 2,
   fadeOut: 3,
   beatSync: false,
+  audioCrossfade: 1,
 }
 const constant = (seconds: number, value: number) => [new Float32Array(seconds * rate).fill(value)]
 const ids = (n: number) => Array.from({ length: n }, (_, i) => `img${i}`)
 
 describe('mixChunk', () => {
   const tracks = [
-    { id: 'a', duration: 10, beats: [], beatsPerImage: 4, beatPhase: 0 },
-    { id: 'b', duration: 8, beats: [], beatsPerImage: 4, beatPhase: 0 },
+    { id: 'a', offset: 0, duration: 10, beats: [], beatsPerImage: 4, beatPhase: 0 },
+    { id: 'b', offset: 0, duration: 8, beats: [], beatsPerImage: 4, beatPhase: 0 },
   ]
   const data = new Map([['a', constant(10, 1)], ['b', constant(8, 1)]])
   const timeline = buildTimeline(ids(8), tracks, settings)

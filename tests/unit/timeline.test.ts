@@ -13,6 +13,7 @@ const settings: TimelineSettings = {
   fadeIn: 2,
   fadeOut: 3,
   beatSync: false,
+  audioCrossfade: 1,
 }
 const beat: TimelineSettings = { ...settings, beatSync: true }
 
@@ -21,7 +22,7 @@ const ids = (n: number) => Array.from({ length: n }, (_, i) => `img${i}`)
 function track(id: string, bpm: number, offset: number, duration: number, beatsPerImage = 4): TimelineTrack {
   const beats: number[] = []
   for (let i = 0; offset + (i * 60) / bpm < duration; i++) beats.push(offset + (i * 60) / bpm)
-  return { id, duration, beats, beatsPerImage, beatPhase: 0 }
+  return { id, offset: 0, duration, beats, beatsPerImage, beatPhase: 0 }
 }
 
 const cuts = (t: Timeline) => t.segments.slice(1).map((s) => s.start)
@@ -118,7 +119,7 @@ describe('beat sync', () => {
   it('follows real beat positions when the tempo drifts', () => {
     const beats: number[] = []
     for (let time = 0.3, i = 0; time < 300; i++, time += 0.5 + 0.03 * Math.sin(i / 7)) beats.push(time)
-    const tracks = [{ id: 'a', duration: 300, beats, beatsPerImage: 4, beatPhase: 0 }]
+    const tracks = [{ id: 'a', offset: 0, duration: 300, beats, beatsPerImage: 4, beatPhase: 0 }]
     const t = buildTimeline(ids(60), tracks, beat)
     cuts(t).forEach((x) => expect(beats).toContain(x))
   })
@@ -189,7 +190,7 @@ describe('beat sync', () => {
   })
 
   it('falls back to fixed steps for a track without beats', () => {
-    const tracks = [{ id: 'a', duration: 600, beats: [], beatsPerImage: 4, beatPhase: 0 }]
+    const tracks = [{ id: 'a', offset: 0, duration: 600, beats: [], beatsPerImage: 4, beatPhase: 0 }]
     const t = buildTimeline(ids(3), tracks, beat)
     expect(t.segments).toEqual(buildTimeline(ids(3), [], settings).segments)
   })

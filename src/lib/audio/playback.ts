@@ -40,7 +40,7 @@ export function schedulePlayback(
       automate(gain.gain, (t) => clipGain(clip, t), clip.end - clip.fadeOut, clip.end)
       const begin = Math.max(clip.start, from)
       source.start(toContext(begin), begin - clip.start + clip.offset)
-      source.stop(toContext(timeline.duration))
+      source.stop(toContext(Math.min(clip.end, timeline.duration)))
       return source
     })
 

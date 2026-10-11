@@ -2,9 +2,10 @@
   import { i18n } from './i18n.svelte'
   import { flip } from 'svelte/animate'
   import { SAMPLE_RATE, decodeAudio, toMono } from '../lib/audio/decode'
+  import { detectSilence } from '../lib/audio/silence'
   import { analyseInWorker } from '../lib/beats'
   import { beatOptions } from '../lib/beats/grid'
-  import { trackBeatsPerImage, trackBpm } from '../lib/project/timeline'
+  import { trackBeatsPerImage, trackBpm, trackDuration } from '../lib/project/timeline'
   import type { Project, ProjectTrack } from '../lib/project/types'
   import { removeBlob, writeBlob } from '../lib/storage'
   import { formatBpm, formatDuration, formatSeconds } from './format'
@@ -44,6 +45,10 @@
           error = m.unreadableAudio(file.name)
           continue
         }
+        const silence = detectSilence(
+          Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c)),
+          buffer.sampleRate,
+        )
         const analysis = await analyseInWorker(toMono(buffer), SAMPLE_RATE).catch(() => null)
         const id = crypto.randomUUID()
         await writeBlob(project.id, id, file)
@@ -55,6 +60,7 @@
           adjust: { factor: 1, manualBpm: null, offsetMs: 0 },
           beatsPerImage: 4,
           targetBeats: null,
+          silence,
         })
       }
     } catch (e) {
@@ -161,7 +167,7 @@
             {/if}
             <div class="title">
               <strong>{track.name}</strong>
-              <span class="meta">{formatDuration(track.duration)} min · <span data-testid="bpm">{formatBpm(bpm)}</span> BPM</span>
+              <span class="meta">{formatDuration(trackDuration(track))} min · <span data-testid="bpm">{formatBpm(bpm)}</span> BPM</span>
             </div>
             <button class="ghost icon danger" onclick={() => remove([track.id])} aria-label={m.remove(track.name)}><Icon name="trash" /></button>
           </div>
@@ -207,6 +213,13 @@
                 <span class="meta">{m.downbeatHint}</span>
               </div>
             {/if}
+          {/if}
+
+          {#if track.silence && track.silence.start + track.silence.end > 0}
+            <label class="inline trim">
+              <input type="checkbox" checked={track.trimSilence !== false} onchange={(e) => (track.trimSilence = e.currentTarget.checked)} />
+              {m.trimSilence(formatSeconds(track.silence.start), formatSeconds(track.silence.end))}
+            </label>
           {/if}
 
           {#if !bpm}
@@ -323,6 +336,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .trim {
+    color: var(--muted);
+    cursor: pointer;
   }
   .inline {
     display: inline-flex;

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { i18n } from './i18n.svelte'
-  import { projectTimeline } from '../lib/project/timeline'
-  import type { Project } from '../lib/project/types'
+  import { projectTimeline, trackDuration } from '../lib/project/timeline'
+  import { DEFAULT_SETTINGS, type Project } from '../lib/project/types'
   import { saveProject } from '../lib/storage'
   import { MAX_VIDEO_SECONDS } from '../lib/timeline/types'
   import ConfirmDialog from './ConfirmDialog.svelte'
@@ -19,7 +19,7 @@
   let { initial, onclose }: { initial: Project; onclose: () => void } = $props()
 
   // svelte-ignore state_referenced_locally
-  let project = $state($state.snapshot(initial))
+  let project = $state({ ...$state.snapshot(initial), settings: { ...DEFAULT_SETTINGS, ...$state.snapshot(initial).settings } })
   let pending = $state(0)
   let saved = $state(true)
   let saveError = $state('')
@@ -47,7 +47,7 @@
   })
 
   const timeline = $derived(projectTimeline(project))
-  const musicSeconds = $derived(project.tracks.reduce((sum, t) => sum + t.duration, 0))
+  const musicSeconds = $derived(project.tracks.reduce((sum, t) => sum + trackDuration(t), 0))
   const tooLong = $derived(timeline.duration > MAX_VIDEO_SECONDS)
 
   const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') ?? false

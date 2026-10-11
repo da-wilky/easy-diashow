@@ -1,6 +1,5 @@
 export const FPS = 30
 export const MAX_VIDEO_SECONDS = 30 * 60
-export const AUDIO_CROSSFADE_SECONDS = 1
 
 export const TRANSITION_GROUPS = {
   fades: ['none', 'crossfade', 'fadeBlack', 'zoom'],
@@ -22,12 +21,17 @@ export interface TimelineSettings {
   fadeIn: number
   fadeOut: number
   beatSync: boolean
+  /** seconds two consecutive tracks overlap; 0 joins them with a hard cut */
+  audioCrossfade: number
 }
 
 export interface TimelineTrack {
   id: string
+  /** seconds into the source file where the used part begins */
+  offset: number
+  /** length of the used part */
   duration: number
-  /** beat times in seconds from track start, ascending; fewer than two means no usable grid */
+  /** beat times in seconds from the start of the used part, ascending; fewer than two means no usable grid */
   beats: number[]
   beatsPerImage: number
   /** index of a beat that counts as "the one"; cuts fall on beats a multiple of `beatsPerImage` away from it */

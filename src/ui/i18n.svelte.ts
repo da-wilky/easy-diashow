@@ -85,9 +85,10 @@ const de = {
   doubleBpm: 'BPM verdoppeln',
   manualBpm: 'BPM von Hand',
   beatOffset: 'Beat-Versatz (ms)',
+  trimSilence: (start: string, end: string) => `Stille abschneiden (${start} am Anfang, ${end} am Ende)`,
   tempoHint: 'Erkennt die Analyse das doppelte oder halbe Tempo, hilft ×½ oder ×2. Der Versatz verschiebt alle Beats.',
   musicHint:
-    'Die Stücke laufen in dieser Reihenfolge mit 1 s Überblendung und wiederholen sich bei Bedarf. Zum Umsortieren ziehen.',
+    'Die Stücke laufen in dieser Reihenfolge, werden ineinander überblendet und wiederholen sich bei Bedarf. Zum Umsortieren ziehen.',
 
   stepStyle: 'Stil & Timing',
   beatSync: 'Übergänge auf den Beat legen',
@@ -122,6 +123,7 @@ const de = {
   transitionDuration: 'Dauer des Übergangs',
   fadeIn: 'Einblenden aus Schwarz',
   fadeOut: 'Ausblenden nach Schwarz',
+  audioCrossfade: 'Überblendung zwischen Musikstücken',
   resolution: 'Auflösung',
   small: 'klein',
   watermark: 'Wasserzeichen',
@@ -245,9 +247,10 @@ const en: typeof de = {
   doubleBpm: 'Double BPM',
   manualBpm: 'Manual BPM',
   beatOffset: 'Beat offset (ms)',
+  trimSilence: (start, end) => `Cut silence (${start} at the start, ${end} at the end)`,
   tempoHint: 'If the analysis found double or half the tempo, ×½ or ×2 helps. The offset shifts all beats.',
   musicHint:
-    'Songs play in this order with a 1 s crossfade and repeat if needed. Drag to reorder.',
+    'Songs play in this order, crossfade into each other and repeat if needed. Drag to reorder.',
 
   stepStyle: 'Style & timing',
   beatSync: 'Put transitions on the beat',
@@ -282,6 +285,7 @@ const en: typeof de = {
   transitionDuration: 'Transition duration',
   fadeIn: 'Fade in from black',
   fadeOut: 'Fade out to black',
+  audioCrossfade: 'Crossfade between songs',
   resolution: 'Resolution',
   small: 'small',
   watermark: 'Watermark',

@@ -89,6 +89,9 @@
   {/if}
   <NumberField label={m.fadeIn} bind:value={project.settings.fadeIn} {...LIMITS.fadeIn} />
   <NumberField label={m.fadeOut} bind:value={project.settings.fadeOut} {...LIMITS.fadeOut} />
+  {#if hasMusic}
+    <NumberField label={m.audioCrossfade} bind:value={project.settings.audioCrossfade} {...LIMITS.audioCrossfade} />
+  {/if}
 
   <Segmented label={m.resolution} options={resolutions} bind:value={project.settings.resolution} />
 

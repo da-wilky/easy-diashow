@@ -50,5 +50,9 @@ export function ensureFixtures() {
     if (!existsSync(file)) ffmpeg(['-f', 'lavfi', '-i', `mandelbrot=s=1920x1080:start_scale=${3 / n}`, '-frames:v', '1', '-q:v', '3', file])
     return file
   })
-  return { images, tracks, watermark, photos }
+  // clicks from 3 s to 16 s, silence before and after
+  const padded = path.join(fixturesDir, 'padded.mp3')
+  if (!existsSync(padded))
+    ffmpeg(['-f', 'lavfi', '-i', "aevalsrc='sin(2*PI*1000*t)*exp(-mod(t-3+0.5,0.5)*120)*gte(t,3)*lte(t,16)':s=44100:d=20", '-ac', '2', '-b:a', '128k', padded])
+  return { images, tracks, watermark, photos, padded }
 }

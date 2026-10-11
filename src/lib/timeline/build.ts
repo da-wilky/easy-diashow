@@ -1,5 +1,4 @@
 import {
-  AUDIO_CROSSFADE_SECONDS,
   type AudioClip,
   type Timeline,
   type TimelineSettings,
@@ -20,10 +19,10 @@ interface Region {
   fadeOut: number
 }
 
-function regionSequence(tracks: TimelineTrack[]) {
+function regionSequence(tracks: TimelineTrack[], audioCrossfade: number) {
   const regions: Region[] = []
   const crossfade = (a: TimelineTrack, b: TimelineTrack) =>
-    Math.min(AUDIO_CROSSFADE_SECONDS, a.duration / 2, b.duration / 2)
+    Math.min(audioCrossfade, a.duration / 2, b.duration / 2)
   const extend = () => {
     const i = regions.length
     const track = tracks[i % tracks.length]!
@@ -82,7 +81,7 @@ export function buildTimeline(imageIds: string[], allTracks: TimelineTrack[], se
   const { fps, fadeIn, fadeOut, secondsPerImage } = settings
   const transitionDuration = settings.transition === 'none' ? 0 : settings.transitionDuration
   const tracks = allTracks.filter((t) => t.duration > 0)
-  const regions = tracks.length ? regionSequence(tracks) : null
+  const regions = tracks.length ? regionSequence(tracks, settings.audioCrossfade) : null
   const beatSync = settings.beatSync && regions !== null
 
   /** first beat at or after `target` that the track playing at that beat may cut on */
@@ -140,7 +139,7 @@ export function buildTimeline(imageIds: string[], allTracks: TimelineTrack[], se
     trackId: r.track.id,
     start: r.start,
     end: r.start + r.track.duration,
-    offset: 0,
+    offset: r.track.offset,
     fadeIn: r.fadeIn,
     fadeOut: r.fadeOut,
   }))
