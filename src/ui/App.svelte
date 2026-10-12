@@ -29,6 +29,7 @@
       {/each}
     </div>
     <a class="meta" href="#datenschutz">{i18n.m.privacy}</a>
+    <a class="meta" href="https://github.com/da-wilky/easy-diashow" rel="noopener">{i18n.m.source}</a>
   </div>
 </header>
 <main>

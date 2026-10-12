@@ -1,5 +1,6 @@
 const de = {
   privacy: 'Datenschutz',
+  source: 'Quellcode',
   cancel: 'Abbrechen',
   close: 'Schließen',
   language: 'Sprache',
@@ -162,6 +163,7 @@ const de = {
 
 const en: typeof de = {
   privacy: 'Privacy',
+  source: 'Source code',
   cancel: 'Cancel',
   close: 'Close',
   language: 'Language',
