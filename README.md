@@ -110,11 +110,6 @@ The module builds the static files and adds one virtual host for them, with the 
     hostName = "diashow.example.org";
   };
 
-  # your existing configuration
-  services.caddy.virtualHosts."cloud.example.org".extraConfig = ''
-    reverse_proxy localhost:8081
-  '';
-
   # optional additions to the Easy Diashow host
   services.caddy.virtualHosts."diashow.example.org".extraConfig = ''
     tls internal
