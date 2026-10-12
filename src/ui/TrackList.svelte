@@ -92,7 +92,7 @@
   }
 
   function scaleTempo(track: ProjectTrack, factor: number) {
-    if (track.adjust.manualBpm) track.adjust.manualBpm = Number((track.adjust.manualBpm * factor).toFixed(2))
+    if (track.adjust.manualBpm) track.adjust.manualBpm = Math.min(400, Math.max(20, Number((track.adjust.manualBpm * factor).toFixed(2))))
     else track.adjust.factor = Math.min(4, Math.max(0.25, track.adjust.factor * factor))
   }
 </script>
@@ -248,7 +248,7 @@
               </label>
               <label class="inline">
                 {m.beatOffset}
-                <input type="number" step="10" min="-2000" max="2000" value={track.adjust.offsetMs} onchange={(e) => (track.adjust.offsetMs = e.currentTarget.valueAsNumber || 0)} />
+                <input type="number" step="10" min="-2000" max="2000" value={track.adjust.offsetMs} onchange={(e) => (track.adjust.offsetMs = Math.min(2000, Math.max(-2000, e.currentTarget.valueAsNumber || 0)))} />
               </label>
             </div>
             <p class="meta">{m.tempoHint}</p>

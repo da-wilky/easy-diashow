@@ -38,10 +38,18 @@
     const loaded = await Promise.all(
       (await listProjects()).map(async (project) => ({
         project,
-        size: await projectSize(project.id),
-        covers: await Promise.all(
-          project.images.slice(0, COVER_IMAGES).map(async (i) => URL.createObjectURL(await readBlob(project.id, thumbnailName(i.id)))),
-        ),
+        // a project whose files are gone must still be listed, or it could never be deleted
+        size: await projectSize(project.id).catch(() => 0),
+        covers: (
+          await Promise.all(
+            project.images.slice(0, COVER_IMAGES).map((i) =>
+              readBlob(project.id, thumbnailName(i.id)).then(
+                (blob) => URL.createObjectURL(blob),
+                () => null,
+              ),
+            ),
+          )
+        ).filter((url) => url !== null),
       })),
     )
     revokeCovers()

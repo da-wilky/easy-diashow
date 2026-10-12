@@ -30,6 +30,7 @@
   const confirm = (text: string, action: string) => dialog.ask(text, action)
 
   let loaded = false
+  let saves = 0
   $effect(() => {
     const snapshot = $state.snapshot(project)
     if (!loaded) {
@@ -37,8 +38,10 @@
       return
     }
     saved = false
+    const save = ++saves
     saveProject({ ...snapshot, modified: Date.now() }).then(
       () => {
+        if (save !== saves) return
         saved = true
         saveError = ''
       },
@@ -77,7 +80,7 @@
 />
 
 <div class="titlebar">
-  <button class="ghost icon" onclick={onclose} aria-label={m.backToProjects}><Icon name="back" /></button>
+  <button class="ghost icon" onclick={onclose} disabled={pending > 0} aria-label={m.backToProjects}><Icon name="back" /></button>
   <h2>{project.name}</h2>
   <span class="meta saved" class:error={saveError} role="status">
     {#if saveError}

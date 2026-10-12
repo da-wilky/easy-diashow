@@ -1,9 +1,16 @@
 export const SAMPLE_RATE = 48000
 
-/** Decodes and resamples to SAMPLE_RATE. Rejects for data the browser cannot decode. */
+/** Decodes to mono or stereo and resamples to SAMPLE_RATE. Rejects for data the browser cannot decode. */
 export async function decodeAudio(blob: Blob): Promise<AudioBuffer> {
-  const context = new OfflineAudioContext(2, 1, SAMPLE_RATE)
-  return context.decodeAudioData(await blob.arrayBuffer())
+  const buffer = await new OfflineAudioContext(2, 1, SAMPLE_RATE).decodeAudioData(await blob.arrayBuffer())
+  if (buffer.numberOfChannels <= 2) return buffer
+  // surround: the stereo destination mixes centre and rear channels in instead of dropping them
+  const context = new OfflineAudioContext(2, buffer.length, SAMPLE_RATE)
+  const source = context.createBufferSource()
+  source.buffer = buffer
+  source.connect(context.destination)
+  source.start()
+  return context.startRendering()
 }
 
 export function toMono(buffer: AudioBuffer): Float32Array {

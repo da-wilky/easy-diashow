@@ -13,6 +13,7 @@
 
   let open = $state<Project>()
   let hash = $state(location.hash)
+  const privacy = $derived(hash === '#datenschutz')
 </script>
 
 <svelte:window onhashchange={() => (hash = location.hash)} />
@@ -31,11 +32,11 @@
   </div>
 </header>
 <main>
-  {#if hash === '#datenschutz'}
-    <Privacy />
-  {:else if open}
-    <Editor initial={open} onclose={() => (open = undefined)} />
-  {:else}
+  {#if privacy}<Privacy />{/if}
+  {#if open}
+    <!-- stays mounted behind the privacy page: it holds the current state of the project and running uploads -->
+    <div hidden={privacy}><Editor initial={open} onclose={() => (open = undefined)} /></div>
+  {:else if !privacy}
     <ProjectList onopen={(project) => (open = project)} />
   {/if}
 </main>

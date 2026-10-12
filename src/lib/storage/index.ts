@@ -15,7 +15,14 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
   open.onupgradeneeded = () => open.result.createObjectStore(STORE, { keyPath: 'id' })
   const db = await promisify(open)
   try {
-    return await promisify(run(db.transaction(STORE, mode).objectStore(STORE)))
+    const transaction = db.transaction(STORE, mode)
+    const request = run(transaction.objectStore(STORE))
+    // a write can still fail at commit, for example when the quota is exceeded
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve()
+      transaction.onabort = () => reject(transaction.error ?? request.error)
+    })
+    return request.result
   } finally {
     db.close()
   }
@@ -23,6 +30,10 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
 
 const projectDir = async (projectId: string, create = false) =>
   (await navigator.storage.getDirectory()).getDirectoryHandle(projectId, { create })
+
+function unlessMissing(error: unknown) {
+  if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error
+}
 
 export function isQuotaError(error: unknown) {
   return error instanceof DOMException && error.name === 'QuotaExceededError'
@@ -62,7 +73,7 @@ export async function createProject(name: string): Promise<Project> {
 
 export async function deleteProject(id: string) {
   await withStore('readwrite', (s) => s.delete(id))
-  await (await navigator.storage.getDirectory()).removeEntry(id, { recursive: true })
+  await (await navigator.storage.getDirectory()).removeEntry(id, { recursive: true }).catch(unlessMissing)
 }
 
 export async function deleteEverything() {
@@ -89,7 +100,7 @@ export async function readBlob(projectId: string, name: string): Promise<File> {
 }
 
 export async function removeBlob(projectId: string, name: string) {
-  await (await projectDir(projectId)).removeEntry(name)
+  await (await projectDir(projectId)).removeEntry(name).catch(unlessMissing)
 }
 
 export async function projectSize(projectId: string) {

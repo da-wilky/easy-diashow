@@ -3,7 +3,7 @@
   import { onDestroy } from 'svelte'
   import { flip } from 'svelte/animate'
   import { SvelteMap } from 'svelte/reactivity'
-  import type { Project, ProjectImage } from '../lib/project/types'
+  import type { Project } from '../lib/project/types'
   import { makeThumbnail, thumbnailName } from '../lib/render/thumbnail'
   import { readBlob, removeBlob, writeBlob } from '../lib/storage'
   import Icon from './Icon.svelte'
@@ -22,7 +22,7 @@
 
   const thumbnails = new SvelteMap<string, string>()
   const collator = new Intl.Collator(undefined, { numeric: true })
-  const byName = (a: ProjectImage, b: ProjectImage) => collator.compare(a.name, b.name)
+  const byName = (a: { name: string }, b: { name: string }) => collator.compare(a.name, b.name)
   const ids = () => project.images.map((i) => i.id)
   const setOrder = (order: string[]) => {
     const byId = new Map(project.images.map((i) => [i.id, i]))
@@ -41,9 +41,9 @@
     error = ''
     pending = pending + 1
     adding += files.length
-    const added: ProjectImage[] = []
+    let id = ''
     try {
-      for (const file of files) {
+      for (const file of files.toSorted(byName)) {
         adding--
         if (!/\.(png|jpe?g)$/i.test(file.name)) {
           error = m.onlyImages(file.name)
@@ -54,17 +54,18 @@
           error = m.unreadableImage(file.name)
           continue
         }
-        const id = crypto.randomUUID()
+        id = crypto.randomUUID()
         await writeBlob(project.id, thumbnailName(id), thumbnail)
         await writeBlob(project.id, id, file)
         thumbnails.set(id, URL.createObjectURL(thumbnail))
-        added.push({ id, name: file.name })
+        // recorded at once, so a reload during a long upload leaves no files without an entry
+        project.images.push({ id, name: file.name })
       }
     } catch (e) {
       error = storageError(e)
+      await Promise.allSettled([removeBlob(project.id, id), removeBlob(project.id, thumbnailName(id))])
     } finally {
       adding = 0
-      project.images.push(...added.sort(byName))
       pending = pending - 1
     }
   }

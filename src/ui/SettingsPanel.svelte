@@ -32,10 +32,14 @@
       error = m.unreadableImage(file.name)
       return
     }
+    const previous = project.watermark
+    // cleared first so that a file of the same name still counts as a change
+    project.watermark = null
     try {
       await writeBlob(project.id, WATERMARK_FILE, file)
       project.watermark = file.name
     } catch (e) {
+      project.watermark = previous
       error = storageError(e)
     }
   }

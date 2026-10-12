@@ -24,6 +24,7 @@
   let playing = $state(false)
   let loading = $state(false)
   let volume = $state(1)
+  let error = $state('')
   const height = $derived(Math.round((WIDTH * timeline.height) / timeline.width))
   const empty = $derived(!timeline.segments.length)
 
@@ -46,13 +47,19 @@
   async function render() {
     if (drawing) return
     drawing = true
-    while (compositor && drawn !== wanted) {
-      const current = compositor
-      const frame = wanted
-      await current.draw(frame)
-      if (current === compositor) drawn = frame
+    try {
+      while (compositor && drawn !== wanted) {
+        const current = compositor
+        const frame = wanted
+        // a compositor replaced while it draws fails on its disposed images
+        await current.draw(frame).catch((e: unknown) => {
+          if (current === compositor) throw e
+        })
+        if (current === compositor) drawn = frame
+      }
+    } finally {
+      drawing = false
     }
-    drawing = false
   }
 
   function show(seconds: number) {
@@ -73,7 +80,8 @@
   function tick() {
     position = Math.min(startedFrom + Math.max(context!.currentTime - startedAt, 0), timeline.duration)
     show(position)
-    if (position >= timeline.duration) pause()
+    // no layout box: hidden behind the privacy page
+    if (position >= timeline.duration || !canvas?.offsetParent) pause()
     else frameRequest = requestAnimationFrame(tick)
   }
 
@@ -94,9 +102,14 @@
     output.gain.value = volume ** 2
     await context.resume()
     loading = true
+    error = ''
+    let id = ''
     try {
-      for (const id of new Set(timeline.audio.map((c) => c.trackId)))
+      for (id of new Set(timeline.audio.map((c) => c.trackId)))
         if (!buffers.has(id)) buffers.set(id, await decodeAudio(await readBlob(project.id, id)))
+    } catch {
+      error = m.unreadableAudio(project.tracks.find((t) => t.id === id)?.name ?? '')
+      return
     } finally {
       loading = false
     }
@@ -121,6 +134,7 @@
     const hasWatermark = project.watermark !== null
     const size = { width: WIDTH, height }
     untrack(pause)
+    for (const id of buffers.keys()) if (!current.audio.some((c) => c.trackId === id)) buffers.delete(id)
     let stale = false
     ;(async () => {
       const missing = current.segments.filter((s) => !thumbnails.has(s.imageId))
@@ -190,6 +204,7 @@
     {/if}
   </div>
   {#if loading}<p class="meta" role="status">{m.loadingMusic}</p>{/if}
+  {#if error}<p class="error" role="alert">{error}</p>{/if}
 </section>
 
 <style>
