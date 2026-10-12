@@ -23,7 +23,7 @@
 
 ## Privacy by design
 
-The server only delivers static files. No image, audio or video byte leaves the browser, there are no cookies, no analytics and no requests to other hosts, and the bundled Caddy configuration writes no access log. A strict Content-Security-Policy enforces the "no other hosts" part.
+The server only delivers static files. No image, audio or video byte leaves the browser, there are no cookies, no analytics and no requests to other hosts, and the bundled web server configurations write no access log. A strict Content-Security-Policy enforces the "no other hosts" part.
 
 ## Browser requirements
 
@@ -36,7 +36,7 @@ Browsers may evict stored projects under storage pressure, and Safari after a lo
 
 ## Deployment
 
-Both options serve the built static files with Caddy and send the same headers. Browsers only run the app on HTTPS (or `localhost`), so a public instance needs TLS.
+Both options serve the built static files and send the same headers; the container uses Caddy, the NixOS module Caddy or nginx. Browsers only run the app on HTTPS (or `localhost`), so a public instance needs TLS.
 
 The privacy notice names the operator only when you set one. The GDPR requires a controller with contact details for a publicly reachable instance, so set `EASY_DIASHOW_OPERATOR` there (`operator` in the NixOS module; one line with name, address and e-mail); a private instance can leave it out.
 
@@ -75,7 +75,7 @@ To build from source instead, run `docker compose up -d --build` in a checkout.
 
 ### NixOS
 
-The flake provides a module that serves the app through `services.caddy`:
+The flake provides a module that serves the app through Caddy or nginx:
 
 ```nix
 {
@@ -88,6 +88,7 @@ The flake provides a module that serves the app through `services.caddy`:
         {
           services.easy-diashow = {
             enable = true;
+            webServer = "caddy"; # or "nginx"
             hostName = "diashow.example.org";
             operator = "Jane Doe, 1 Example Street, 12345 Example Town, jane@example.org";
           };
@@ -99,25 +100,30 @@ The flake provides a module that serves the app through `services.caddy`:
 }
 ```
 
-The module builds the static files and adds one virtual host for them, with the headers above and without an access log. Caddy obtains the certificate for the host name itself. `nix build` alone produces the static files.
+The module builds the static files and adds one virtual host for them to the chosen web server, with the headers above and without an access log. It only defines that one virtual host, so on a host where the web server already runs, the site is added next to your existing ones and your global settings stay as they are. `nix build` alone produces the static files.
 
-**With a Caddy that is already running on the host.** Nothing else is needed: the module only defines `services.caddy.virtualHosts.<hostName>`, so the host is added next to your existing ones and your global settings stay as they are. Further directives for that host go into the same virtual host and are merged:
+The app must sit at the root of its host; serving it under a sub-path such as `example.org/diashow` is not supported.
+
+**Caddy** (the default) obtains the certificate for the host name itself. `hostName` takes any Caddy site address, for example `:8080` or `http://diashow.lan` for a host without a certificate. Further directives go into the same virtual host and are merged:
 
 ```nix
-{
-  services.easy-diashow = {
-    enable = true;
-    hostName = "diashow.example.org";
-  };
-
-  # optional additions to the Easy Diashow host
-  services.caddy.virtualHosts."diashow.example.org".extraConfig = ''
-    tls internal
-  '';
-}
+services.caddy.virtualHosts."diashow.example.org".extraConfig = ''
+  tls internal
+'';
 ```
 
-`hostName` takes any Caddy site address, for example `http://diashow.lan` or `:8080` for a host without a certificate. The app must sit at the root of its host; serving it under a sub-path such as `example.org/diashow` is not supported.
+**nginx** serves plain HTTP on port 80 under the server name `hostName` until you switch TLS on for that virtual host:
+
+```nix
+services.nginx.virtualHosts."diashow.example.org" = {
+  enableACME = true;
+  forceSSL = true;
+};
+security.acme = {
+  acceptTerms = true;
+  defaults.email = "jane@example.org";
+};
+```
 
 ## Development
 

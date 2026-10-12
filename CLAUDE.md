@@ -5,7 +5,7 @@ Client-side-only web app: upload images, order them, add music, export an MP4 sl
 ## Principles
 - No backend. The server delivers static files only. No image, audio or video byte ever leaves the browser.
 - No cookies, no tracking, no analytics, no third-party requests (no CDN, no web fonts from other hosts). All assets bundled.
-- The one runtime setting is the operator named in the privacy notice: the web server answers `/operator.txt` from the `EASY_DIASHOW_OPERATOR` environment variable (`Caddyfile`), and the privacy page shows the section only when the answer is non-empty.
+- The one runtime setting is the operator named in the privacy notice: the web server answers `/operator.txt` from the `EASY_DIASHOW_OPERATOR` environment variable (`Caddyfile`; the nginx variant of the NixOS module serves a generated file instead), and the privacy page shows the section only when the answer is non-empty.
 - User data lives in browser storage on the user's device and is deleted only by the user (per project, or everything).
 - UI languages: German and English. Every UI string lives in `src/ui/i18n.svelte.ts` (`en` must mirror `de`); the choice is kept in `localStorage`, default from the browser language. Code, identifiers, commits: English. No attribution lines in commit messages.
 - Timeline computation is a pure function, separated from rendering. Its JSON output is the renderer contract, so a server renderer could be added later without touching the beat logic. Do not build a server.
