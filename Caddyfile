@@ -19,5 +19,9 @@
 	@unhashed not path /assets/*
 	header @unhashed Cache-Control "no-cache"
 
+	# contact details for the privacy notice; an empty answer hides that section
+	header /operator.txt Content-Type "text/plain; charset=utf-8"
+	respond /operator.txt "{env.EASY_DIASHOW_OPERATOR}"
+
 	file_server
 }

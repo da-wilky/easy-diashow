@@ -35,6 +35,12 @@
               example = "diashow.example.org";
               description = "Caddy site address. A domain name gets a certificate automatically.";
             };
+            operator = lib.mkOption {
+              type = lib.types.nullOr lib.types.singleLineStr;
+              default = null;
+              example = "Jane Doe, 1 Example Street, 12345 Example Town, jane@example.org";
+              description = "Controller named in the privacy notice. Required by the GDPR for a public instance; null leaves the section out.";
+            };
           };
 
           config = lib.mkIf cfg.enable {
@@ -48,6 +54,9 @@
                   ${siteConfig}
                 '';
               };
+            };
+            systemd.services.caddy.environment = lib.mkIf (cfg.operator != null) {
+              EASY_DIASHOW_OPERATOR = cfg.operator;
             };
           };
         };

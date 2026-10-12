@@ -1,5 +1,14 @@
 <script lang="ts">
   import { i18n } from './i18n.svelte'
+
+  let operator = $state('')
+  // answered by the server from EASY_DIASHOW_OPERATOR; servers without that route answer with an error or with HTML
+  fetch('/operator.txt').then(
+    async (response) => {
+      if (response.ok && response.headers.get('content-type')?.startsWith('text/plain')) operator = (await response.text()).trim()
+    },
+    () => {},
+  )
 </script>
 
 <article class="card stack">
@@ -12,8 +21,10 @@
       Dritte übertragen und dort auch nicht gespeichert.
     </p>
 
-    <h3>Verantwortlich</h3>
-    <p>[Name und Anschrift des Betreibers, E-Mail-Adresse]</p>
+    {#if operator}
+      <h3>Verantwortlich</h3>
+      <p>{operator}</p>
+    {/if}
 
     <h3>Aufruf der Seite</h3>
     <p>
@@ -50,8 +61,10 @@
       third parties nor stored there.
     </p>
 
-    <h3>Controller</h3>
-    <p>[Name and address of the operator, e-mail address]</p>
+    {#if operator}
+      <h3>Controller</h3>
+      <p>{operator}</p>
+    {/if}
 
     <h3>Visiting the site</h3>
     <p>

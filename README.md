@@ -36,17 +36,46 @@ Browsers may evict stored projects under storage pressure, and Safari after a lo
 
 ## Deployment
 
-Both options serve the built static files with Caddy and send the same headers. Before going live, fill in the operator's contact details in `src/ui/Privacy.svelte`.
+Both options serve the built static files with Caddy and send the same headers. Browsers only run the app on HTTPS (or `localhost`), so a public instance needs TLS.
+
+The privacy notice names the operator only when you set one. The GDPR requires a controller with contact details for a publicly reachable instance, so set `EASY_DIASHOW_OPERATOR` there (`operator` in the NixOS module; one line with name, address and e-mail); a private instance can leave it out.
 
 ### Docker
 
+Every push to `main` publishes `ghcr.io/da-wilky/easy-diashow` for amd64 and arm64, tagged `latest` and `sha-<commit>`.
+
 ```sh
-docker compose up -d --build   # serves on port 8080
+docker run -d --name easy-diashow --restart unless-stopped -p 8080:80 \
+  -e EASY_DIASHOW_OPERATOR="Jane Doe, 1 Example Street, 12345 Example Town, jane@example.org" \
+  ghcr.io/da-wilky/easy-diashow:latest
 ```
 
-Put it behind a TLS-terminating reverse proxy.
+Or with Compose:
+
+```yaml
+services:
+  easy-diashow:
+    image: ghcr.io/da-wilky/easy-diashow:latest
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      EASY_DIASHOW_OPERATOR: "Jane Doe, 1 Example Street, 12345 Example Town, jane@example.org"
+```
+
+The container speaks plain HTTP on port 80. Put it behind a TLS-terminating reverse proxy, for example an existing Caddy:
+
+```caddyfile
+diashow.example.org {
+	reverse_proxy localhost:8080
+}
+```
+
+To build from source instead, run `docker compose up -d --build` in a checkout.
 
 ### NixOS
+
+The flake provides a module that serves the app through `services.caddy`:
 
 ```nix
 {
@@ -60,6 +89,7 @@ Put it behind a TLS-terminating reverse proxy.
           services.easy-diashow = {
             enable = true;
             hostName = "diashow.example.org";
+            operator = "Jane Doe, 1 Example Street, 12345 Example Town, jane@example.org";
           };
           networking.firewall.allowedTCPPorts = [ 80 443 ];
         }
@@ -69,7 +99,30 @@ Put it behind a TLS-terminating reverse proxy.
 }
 ```
 
-The module adds a virtual host to `services.caddy`, which obtains the certificate itself. `nix build` alone produces the static files.
+The module builds the static files and adds one virtual host for them, with the headers above and without an access log. Caddy obtains the certificate for the host name itself. `nix build` alone produces the static files.
+
+**With a Caddy that is already running on the host.** Nothing else is needed: the module only defines `services.caddy.virtualHosts.<hostName>`, so the host is added next to your existing ones and your global settings stay as they are. Further directives for that host go into the same virtual host and are merged:
+
+```nix
+{
+  services.easy-diashow = {
+    enable = true;
+    hostName = "diashow.example.org";
+  };
+
+  # your existing configuration
+  services.caddy.virtualHosts."cloud.example.org".extraConfig = ''
+    reverse_proxy localhost:8081
+  '';
+
+  # optional additions to the Easy Diashow host
+  services.caddy.virtualHosts."diashow.example.org".extraConfig = ''
+    tls internal
+  '';
+}
+```
+
+`hostName` takes any Caddy site address, for example `http://diashow.lan` or `:8080` for a host without a certificate. The app must sit at the root of its host; serving it under a sub-path such as `example.org/diashow` is not supported.
 
 ## Development
 
