@@ -330,10 +330,3 @@ button.quiet.danger:hover:not(:disabled) {
   background: var(--danger-soft);
   color: var(--danger);
 }
-
-/* animated by the blinds demo in the transition picker */
-@property --blind {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 0%;
-}

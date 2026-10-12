@@ -46,12 +46,12 @@ Timeline JSON: fps, resolution, total duration, fade-in/out, segments (image id,
 ## Timing rules
 - Songs: silence of a second or more at either end of a file (below -50 dBFS) is detected on upload and cut unless switched off per song; consecutive songs overlap by the `audioCrossfade` setting (default 2 s, 0 = hard cut).
 - Fixed time: fade-in, then per image `secondsPerImage` fully visible, transitions in between, fade-out (as the old app).
-- Beat sync: every cut is a beat of the track whose grid is active and in phase with its declared downbeat (`beatPhase`, set per song as a shift in beats from the first detected beat; downbeats are not detected automatically); a track's grid is active between the midpoints of its audio crossfades. Cuts are `beatsPerImage` beats apart; the first cut leaves the first image fully visible for at least that long; the fade-out starts on a beat. Transitions shrink when two cuts are closer than the transition duration. Tracks without tempo fall back to fixed steps.
+- Beat sync: the first cut and the first cut after a song change take the allowed beat nearest to the intended time (so an image shows between half and one and a half times its duration there). Every cut is a beat of the track whose grid is active and in phase with its declared downbeat (`beatPhase`, set per song as a shift in beats from the first detected beat; downbeats are not detected automatically); a track's grid is active between the midpoints of its audio crossfades. Cuts are `beatsPerImage` beats apart; the first cut leaves the first image fully visible for at least that long; the fade-out starts on a beat. Transitions shrink when two cuts are closer than the transition duration. Tracks without tempo fall back to fixed steps.
 - Transitions are drawn by `lib/render/transitions.ts` (one case per type) and listed in groups in `TRANSITION_GROUPS`; the picker shows four basics and expands to all.
 - Fades in and out apply for every transition type, including "Kein Übergang" (the old app skipped them there).
 
 ## Measured
-- Beat detection on click tracks: BPM exact, beats within 13 ms (tests allow ±1 BPM, ±25 ms). Not yet judged on real songs.
+- Beat detection on click tracks: BPM exact, beats within 13 ms (tests allow ±1 BPM, ±25 ms). On one real pop song (about 100 BPM, 231 s) the detected beats were regular throughout: median interval 0.600 s, one outlier.
 - 180 s 1080p30 from ten 4000×3000 JPEGs: 43 s in headless Chromium with software encoding (measured before the bitrate was raised).
 - Video encoding asks for a fixed quantizer and falls back to 12 bit/s per pixel (25 Mbit/s at 1080p, variable, so stills use far less); a key frame is forced where each image comes to rest. Chromium on Linux has no quantizer mode for H.264, so it uses the fallback.
 - The AAC track is up to about 30 ms longer than the video (encoder frame padding).

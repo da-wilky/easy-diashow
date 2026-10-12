@@ -18,7 +18,7 @@
     {#each types as type (type)}
       <label class:selected={type === value}>
         <input type="radio" name="transition" checked={type === value} onchange={() => (value = type)} />
-        <span class="demo {type}" aria-hidden="true"><span class="prev"></span><span class="next"></span></span>
+        <span class="demo {type}" aria-hidden="true"><span class="layer first"></span><span class="layer second"></span></span>
         <span>{m.transitions[type]}</span>
       </label>
     {/each}
@@ -89,7 +89,8 @@
     opacity: 0;
     margin: 0;
     cursor: pointer;
-    z-index: 1;
+    /* above the demo layers, which swap between z-index 1 and 2 */
+    z-index: 3;
   }
   .demo {
     position: relative;
@@ -98,124 +99,165 @@
     overflow: hidden;
     background: #000;
   }
-  .prev,
-  .next {
+  /*
+   * The two pictures take turns: each one enters with the transition during the first half of its loop, lying on top,
+   * then stays underneath while the other one, half a loop behind, does the same.
+   */
+  .layer {
     position: absolute;
     inset: 0;
-    animation: 2.8s infinite both;
+    /* longhands: the build minifies an animation shorthand without a name to `animation: none` */
+    animation-duration: 6s;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+    animation-timing-function: ease, step-end;
   }
-  .prev {
-    background: linear-gradient(135deg, #f59e0b, #ef4444);
+  /* shapes in the pictures make movement and scaling visible, not only the colour change */
+  .first {
+    animation-delay: -3s;
+    background:
+      radial-gradient(circle at 28% 34%, #fff7d6 0 13%, transparent 14%),
+      linear-gradient(to top right, #7c2d12 0 38%, transparent 39%),
+      linear-gradient(135deg, #f59e0b, #ef4444);
   }
-  .next {
-    background: linear-gradient(135deg, #22d3ee, #6366f1);
+  .second {
+    background:
+      radial-gradient(circle at 70% 58%, #e0f2fe 0 18%, transparent 19%),
+      radial-gradient(circle at 26% 30%, #e0f2fe 0 8%, transparent 9%),
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.16) 0 4px, transparent 4px 12px),
+      linear-gradient(135deg, #22d3ee, #6366f1);
   }
 
-  /* every demo holds the first image until 30 %, changes until 55 % and holds the second */
-  .none .next {
-    animation-name: cut;
+  .none .layer {
+    animation-name: cut, front;
     animation-timing-function: step-end;
   }
-  .crossfade .next {
-    animation-name: fade;
+  .fadeBlack .layer {
+    animation-name: through-black, front;
   }
-  .fadeBlack .prev {
-    animation-name: to-black;
+  .push .layer {
+    animation-name: push, front;
   }
-  .fadeBlack .next {
-    animation-name: from-black;
+  .pushUp .layer {
+    animation-name: push-up, front;
   }
-  .zoom .next {
-    animation-name: zoom;
+  .crossfade .layer {
+    animation-name: crossfade, front;
   }
-  .wipe .next {
-    animation-name: wipe;
+  .zoom .layer {
+    animation-name: zoom, front;
   }
-  .wipeLeft .next {
-    animation-name: wipe-left;
+  .wipe .layer {
+    animation-name: wipe, front;
   }
-  .wipeDown .next {
-    animation-name: wipe-down;
+  .wipeLeft .layer {
+    animation-name: wipe-left, front;
   }
-  .wipeUp .next {
-    animation-name: wipe-up;
+  .wipeDown .layer {
+    animation-name: wipe-down, front;
   }
-  .slide .next,
-  .push .next {
-    animation-name: in-from-right;
+  .wipeUp .layer {
+    animation-name: wipe-up, front;
   }
-  .push .prev {
-    animation-name: out-to-left;
+  .slide .layer {
+    animation-name: slide, front;
   }
-  .pushUp .next {
-    animation-name: in-from-below;
+  .reveal .layer {
+    animation-name: reveal, front;
   }
-  .pushUp .prev {
-    animation-name: out-to-top;
+  .circle .layer {
+    animation-name: circle, front;
   }
-  .reveal .next {
-    animation-name: reveal;
-  }
-  .circle .next {
-    animation-name: circle;
-  }
-  .blinds .next {
-    mask-image: repeating-linear-gradient(90deg, #000 0 var(--blind), transparent var(--blind) 25%);
-    animation-name: blinds;
+  .blinds .layer {
+    animation-name: blinds, front;
   }
 
+  @keyframes front {
+    0% {
+      z-index: 2;
+    }
+    50%,
+    100% {
+      z-index: 1;
+    }
+  }
   @keyframes cut {
     0% {
       opacity: 0;
     }
-    45%,
+    22%,
     100% {
       opacity: 1;
     }
   }
-  @keyframes fade {
+  /* the picture underneath darkens first (its 60-72 %), then this one comes up from black */
+  @keyframes through-black {
     0%,
-    30% {
-      opacity: 0;
-    }
-    55%,
-    100% {
-      opacity: 1;
-    }
-  }
-  @keyframes to-black {
-    0%,
-    30% {
-      filter: brightness(1);
-    }
-    42%,
-    100% {
-      filter: brightness(0);
-    }
-  }
-  @keyframes from-black {
-    0%,
-    42% {
+    22% {
       opacity: 0;
       filter: brightness(0);
     }
-    43% {
+    23% {
       opacity: 1;
       filter: brightness(0);
     }
-    55%,
-    100% {
+    35%,
+    60% {
       opacity: 1;
       filter: brightness(1);
+    }
+    72%,
+    100% {
+      opacity: 1;
+      filter: brightness(0);
+    }
+  }
+  /* pushed pictures also leave while the other one enters */
+  @keyframes push {
+    0%,
+    10% {
+      translate: 100% 0;
+    }
+    35%,
+    60% {
+      translate: 0 0;
+    }
+    85%,
+    100% {
+      translate: -100% 0;
+    }
+  }
+  @keyframes push-up {
+    0%,
+    10% {
+      translate: 0 100%;
+    }
+    35%,
+    60% {
+      translate: 0 0;
+    }
+    85%,
+    100% {
+      translate: 0 -100%;
+    }
+  }
+  @keyframes crossfade {
+    0%,
+    10% {
+      opacity: 0;
+    }
+    35%,
+    100% {
+      opacity: 1;
     }
   }
   @keyframes zoom {
     0%,
-    30% {
+    10% {
       opacity: 0;
-      scale: 1.5;
+      scale: 2.2;
     }
-    55%,
+    35%,
     100% {
       opacity: 1;
       scale: 1;
@@ -223,112 +265,82 @@
   }
   @keyframes wipe {
     0%,
-    30% {
+    10% {
       clip-path: inset(0 100% 0 0);
     }
-    55%,
+    35%,
     100% {
       clip-path: inset(0);
     }
   }
   @keyframes wipe-left {
     0%,
-    30% {
+    10% {
       clip-path: inset(0 0 0 100%);
     }
-    55%,
+    35%,
     100% {
       clip-path: inset(0);
     }
   }
   @keyframes wipe-down {
     0%,
-    30% {
+    10% {
       clip-path: inset(0 0 100% 0);
     }
-    55%,
+    35%,
     100% {
       clip-path: inset(0);
     }
   }
   @keyframes wipe-up {
     0%,
-    30% {
+    10% {
       clip-path: inset(100% 0 0 0);
     }
-    55%,
+    35%,
     100% {
       clip-path: inset(0);
     }
   }
-  @keyframes in-from-right {
+  @keyframes slide {
     0%,
-    30% {
+    10% {
       translate: 100% 0;
     }
-    55%,
+    35%,
     100% {
       translate: 0 0;
-    }
-  }
-  @keyframes out-to-left {
-    0%,
-    30% {
-      translate: 0 0;
-    }
-    55%,
-    100% {
-      translate: -100% 0;
-    }
-  }
-  @keyframes in-from-below {
-    0%,
-    30% {
-      translate: 0 100%;
-    }
-    55%,
-    100% {
-      translate: 0 0;
-    }
-  }
-  @keyframes out-to-top {
-    0%,
-    30% {
-      translate: 0 0;
-    }
-    55%,
-    100% {
-      translate: 0 -100%;
     }
   }
   @keyframes reveal {
     0%,
-    30% {
+    10% {
       clip-path: inset(0 50%);
     }
-    55%,
+    35%,
     100% {
       clip-path: inset(0);
     }
   }
   @keyframes circle {
     0%,
-    30% {
+    10% {
       clip-path: circle(0% at center);
     }
-    55%,
+    35%,
     100% {
       clip-path: circle(75% at center);
     }
   }
   @keyframes blinds {
     0%,
-    30% {
-      --blind: 0%;
+    10% {
+      clip-path: polygon(0 100%, 0 0, 0 0, 0 100%, 25% 100%, 25% 0, 25% 0, 25% 100%, 50% 100%, 50% 0, 50% 0, 50% 100%, 75% 100%, 75% 0, 75% 0, 75% 100%);
     }
-    55%,
+    35%,
     100% {
-      --blind: 25%;
+      clip-path: polygon(0 100%, 0 0, 25% 0, 25% 100%, 25% 100%, 25% 0, 50% 0, 50% 100%, 50% 100%, 50% 0, 75% 0, 75% 100%, 75% 100%, 75% 0, 100% 0, 100% 100%);
     }
   }
 </style>

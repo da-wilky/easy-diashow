@@ -97,10 +97,23 @@ describe('beat sync', () => {
     expectWellFormed(t)
   })
 
-  it('shows the first image fully for at least the chosen duration', () => {
-    const t = buildTimeline(ids(5), [track('a', 120, 0.1, 600, 4)], beat)
-    expect(t.transitions[0]!.start - t.fadeIn).toBeGreaterThanOrEqual(2 - 1e-9)
-    expect(t.transitions[0]!.start - t.fadeIn).toBeLessThan(2 + 2)
+  it('shows the first image fully for about the chosen duration, whatever the downbeat', () => {
+    for (const beatsPerImage of [1, 2, 4, 8, 16])
+      for (let beatPhase = 0; beatPhase < beatsPerImage; beatPhase++) {
+        const t = buildTimeline(ids(5), [{ ...track('a', 120, 0.1, 600, beatsPerImage), beatPhase }], beat)
+        const chosen = beatsPerImage * 0.5
+        const visible = t.transitions[0]!.start - t.fadeIn
+        expect(visible).toBeGreaterThanOrEqual(chosen / 2 - 1e-9)
+        expect(visible).toBeLessThan(chosen * 1.5 + 1e-9)
+      }
+  })
+
+  it('does not let an image wait almost two turns for the bar after a track change', () => {
+    const tracks = [{ ...track('a', 120, 0.1, 21, 8), beatPhase: 3 }, { ...track('b', 90, 0.25, 40, 8), beatPhase: 6 }]
+    const t = buildTimeline(ids(12), tracks, beat)
+    for (const s of t.segments.slice(1, -1)) expect(s.end - s.start).toBeLessThan(8 * (60 / 90) * 1.5 + 1e-9)
+    cuts(t).forEach((x) => expectOnBeat(t, tracks, x))
+    expectWellFormed(t)
   })
 
   it('starts the fade-out on a beat', () => {

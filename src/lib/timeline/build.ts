@@ -57,6 +57,11 @@ function beatIndex(region: Region, t: number) {
   return region.track.beats.findIndex((b) => b >= t - region.start - EPS)
 }
 
+/** seconds one image stays on this track's grid, by its average tempo */
+function imageSpan(track: TimelineTrack) {
+  return ((track.beats.at(-1)! - track.beats[0]!) / (track.beats.length - 1)) * track.beatsPerImage
+}
+
 /** index of the first beat at or after `t` this track may cut on, or -1 */
 function cutIndex(region: Region, t: number) {
   const { beats, beatsPerImage, beatPhase } = region.track
@@ -84,13 +89,16 @@ export function buildTimeline(imageIds: string[], allTracks: TimelineTrack[], se
   const regions = tracks.length ? regionSequence(tracks, settings.audioCrossfade) : null
   const beatSync = settings.beatSync && regions !== null
 
-  /** first beat at or after `target` that the track playing at that beat may cut on */
-  const snap = (target: number, origin: Region | null): number => {
+  /**
+   * The beat nearest to `target`, but not before `earliest`, that the track playing there may cut on.
+   * Taking the nearest instead of the next keeps an image from staying almost twice its time while waiting for the bar.
+   */
+  const snap = (target: number, origin: Region | null, earliest: number): number => {
     // a track whose beats all lie inside its crossfades never yields one
     for (let tries = 0; tries <= tracks.length * 2; tries++) {
       const region = regions!.at(target)
       if (region === origin || !hasGrid(region.track)) return target
-      const i = cutIndex(region, Math.max(target, region.from))
+      const i = cutIndex(region, Math.max(target - imageSpan(region.track) / 2, earliest, region.from))
       const beat = region.start + (region.track.beats[i] ?? Infinity)
       if (beat < region.to) return beat
       target = region.to
@@ -101,18 +109,19 @@ export function buildTimeline(imageIds: string[], allTracks: TimelineTrack[], se
   const next = (t: number): number => {
     if (!beatSync) return t + secondsPerImage + transitionDuration
     const region = regions!.at(t)
-    if (!hasGrid(region.track)) return snap(t + secondsPerImage + transitionDuration, region)
-    const target = advance(region, t, region.track.beatsPerImage)
-    return target < region.to ? target : snap(target, region)
+    const target = hasGrid(region.track) ? advance(region, t, region.track.beatsPerImage) : t + secondsPerImage + transitionDuration
+    return hasGrid(region.track) && target < region.to ? target : snap(target, region, (t + target) / 2)
   }
 
   const cuts: number[] = []
   const onGrid = (time: number) => beatSync && hasGrid(regions!.at(time).track)
-  let t = onGrid(fadeIn) ? snap(fadeIn + transitionDuration / 2, null) : fadeIn - transitionDuration / 2
+  const visibleFrom = fadeIn + transitionDuration / 2
+  let t = fadeIn - transitionDuration / 2
   let lastStepOnGrid = false
   for (let i = 0; i < imageIds.length; i++) {
-    lastStepOnGrid = onGrid(t)
-    t = next(t)
+    lastStepOnGrid = onGrid(i ? t : fadeIn)
+    // the first image is fully visible for about its time on the grid, at least half of it
+    t = i === 0 && lastStepOnGrid ? snap(visibleFrom + imageSpan(regions!.at(fadeIn).track), null, visibleFrom) : next(t)
     cuts.push(t)
   }
   const holdEnd = imageIds.length ? cuts.pop()! - (lastStepOnGrid ? 0 : transitionDuration / 2) : 0
