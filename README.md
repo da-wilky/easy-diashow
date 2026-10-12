@@ -16,11 +16,40 @@ npm run test:e2e   # builds, exports videos in headless Chromium, verifies them 
 
 ## Deployment
 
+Both options serve the built static files with Caddy: no access log, a strict Content-Security-Policy without external origins, and long-lived caching for hashed assets. Browsers only offer WebCodecs and the origin private file system on HTTPS (or `localhost`).
+
+### Docker
+
 ```sh
 docker compose up -d --build   # serves on port 8080
 ```
 
-The container serves `dist/` with Caddy: no access log, a strict Content-Security-Policy without external origins, and long-lived caching for hashed assets. Put it behind a TLS-terminating reverse proxy; browsers only offer WebCodecs and the origin private file system on HTTPS (or `localhost`).
+Put it behind a TLS-terminating reverse proxy.
+
+### NixOS
+
+```nix
+{
+  inputs.easy-diashow.url = "git+file:///path/to/easy-diashow";
+
+  outputs = { nixpkgs, easy-diashow, ... }: {
+    nixosConfigurations.host = nixpkgs.lib.nixosSystem {
+      modules = [
+        easy-diashow.nixosModules.default
+        {
+          services.easy-diashow = {
+            enable = true;
+            hostName = "diashow.example.org";
+          };
+          networking.firewall.allowedTCPPorts = [ 80 443 ];
+        }
+      ];
+    };
+  };
+}
+```
+
+The module adds a virtual host to `services.caddy`, which obtains the certificate itself. `nix build` alone produces the static files. After changing `package-lock.json`, update `npmDepsHash` in `flake.nix` (`nix run nixpkgs#prefetch-npm-deps package-lock.json`).
 
 Before going live, fill in the operator's contact details in `src/ui/Privacy.svelte`.
 
